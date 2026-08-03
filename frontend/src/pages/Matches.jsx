@@ -40,7 +40,7 @@ export default function Matches() {
     if (!window.confirm('Assign this donor to your request?')) return
     setMsg('')
     try {
-      await api.patch(`/requests/${id}/status`, { status: 'matched', donorId })
+      await api.patch(`/requests/${id}/donor`, { action: 'assign', donorId })
       setMsg('Donor assigned! Your request is now matched.')
       navigate('/dashboard')
     } catch (err) {

@@ -42,6 +42,9 @@ export default function Navbar() {
               <Link to="/profile" className="btn nav-btn">
                 Profile
               </Link>
+              <Link to="/journey" className="btn nav-btn">
+                My Journey
+              </Link>
               <Link to="/donations" className="btn nav-btn">
                 Donations
               </Link>

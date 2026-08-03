@@ -8,6 +8,7 @@ const emptyForm = {
   bloodGroup: '',
   units: 1,
   hospital: '',
+  phone: '',
   city: '',
   area: '',
   urgency: 'emergency',
@@ -70,6 +71,17 @@ export default function RequestBlood() {
           <input name="hospital" placeholder="Hospital name" value={form.hospital} onChange={handleChange} />
         </label>
 
+        <label className="field">
+          <span>Phone Number</span>
+          <input
+            name="phone"
+            type="tel"
+            placeholder="Contact Number"
+            value={form.phone}
+            onChange={handleChange}
+          />
+        </label>
+
         <div className="form-grid-2">
           <label className="field">
             <span>City</span>
@@ -85,7 +97,7 @@ export default function RequestBlood() {
           <span>Urgency</span>
           <select name="urgency" value={form.urgency} onChange={handleChange} className="select">
             <option value="emergency">🚨 Emergency</option>
-            <option value="normal">Normal</option>
+            <option value="normal">🕐 Normal</option>
           </select>
         </label>
 

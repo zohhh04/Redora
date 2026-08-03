@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
 
@@ -16,6 +17,7 @@ function formatTimeAgo(date) {
 
 export default function Requests() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [filters, setFilters] = useState({ bloodGroup: '', city: '', urgency: '' })
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
@@ -45,15 +47,21 @@ export default function Requests() {
 
   const handleFilterChange = (e) => setFilters({ ...filters, [e.target.name]: e.target.value })
 
-  const accept = async (id) => {
-    if (!window.confirm('Accept this request? It will be marked as matched to you.')) return
+  const respond = async (id, action) => {
+    if (action === 'accept' && !window.confirm('Accept this request? The patient will need to confirm you.')) return
+    if (action === 'decline' && !window.confirm('Decline this request? It will stay open for other donors.')) return
     setMsg('')
+    setError('')
     try {
-      await api.patch(`/requests/${id}/status`, { status: 'matched', donorId: user.id })
-      setMsg('You accepted the request. The patient will be notified.')
-      load()
+      const { data } = await api.patch(`/requests/${id}/respond`, { action })
+      setMsg(action === 'accept' ? 'You accepted the request. The patient will confirm your donation.' : data.message)
+      if (action === 'accept') {
+        navigate(`/tracking/${id}`)
+      } else {
+        load()
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to accept request')
+      setError(err.response?.data?.message || 'Action failed')
     }
   }
 
@@ -128,9 +136,14 @@ export default function Requests() {
                     </div>
                     {r.notes && <p className="request-notes">📝 {r.notes}</p>}
                     <p className="request-reasons">{r.matchReasons?.join(' · ')}</p>
-                    <button className="btn primary btn-sm" onClick={() => accept(r._id)}>
-                      Accept Request
-                    </button>
+                    <div className="request-actions">
+                      <button className="btn primary btn-sm" onClick={() => respond(r._id, 'accept')}>
+                        Accept Request
+                      </button>
+                      <button className="btn ghost btn-sm" onClick={() => respond(r._id, 'decline')}>
+                        Decline
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

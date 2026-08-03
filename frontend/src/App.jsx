@@ -15,6 +15,9 @@ import Matches from './pages/Matches'
 import RequestBlood from './pages/RequestBlood'
 import Logout from './pages/Logout'
 import PatientDashboard from './pages/PatientDashboard'
+import Journey from './pages/Journey'
+import Tracking from './pages/Tracking'
+import Certificate from './pages/Certificate'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -55,6 +58,20 @@ function MatchesRoute() {
   if (!user) return null
   if (user.role !== 'patient') return <Navigate to="/dashboard" replace />
   return <Matches />
+}
+
+function JourneyRoute() {
+  const { user } = useAuth()
+  if (!user) return null
+  if (user.role !== 'donor') return <Navigate to="/dashboard" replace />
+  return <Journey />
+}
+
+function CertificateRoute() {
+  const { user } = useAuth()
+  if (!user) return null
+  if (user.role !== 'donor') return <Navigate to="/dashboard" replace />
+  return <Certificate />
 }
 
 export default function App() {
@@ -107,6 +124,30 @@ export default function App() {
             element={
               <Protected>
                 <MatchesRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/journey"
+            element={
+              <Protected>
+                <JourneyRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/tracking/:id"
+            element={
+              <Protected>
+                <Tracking />
+              </Protected>
+            }
+          />
+          <Route
+            path="/certificate/:id"
+            element={
+              <Protected>
+                <CertificateRoute />
               </Protected>
             }
           />

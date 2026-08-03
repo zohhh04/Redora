@@ -6,7 +6,11 @@ const {
   getRequests,
   getRequestById,
   getMatchedDonors,
-  updateRequestStatus,
+  respondToRequest,
+  manageDonor,
+  updateJourney,
+  getTracking,
+  getCertificate,
 } = require("../controllers/requestController")
 
 const router = express.Router()
@@ -16,8 +20,12 @@ router.use(protect)
 router.post("/", createRequest)
 router.get("/my", getMyRequests)
 router.get("/", getRequests)
+router.get("/:id/tracking", getTracking)
+router.get("/:id/certificate", getCertificate)
+router.patch("/:id/respond", respondToRequest)
+router.patch("/:id/donor", manageDonor)
+router.patch("/:id/journey", updateJourney)
 router.get("/:id/donors", getMatchedDonors)
 router.get("/:id", getRequestById)
-router.patch("/:id/status", updateRequestStatus)
 
 module.exports = router

@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MONTHS_MS = 2 * 30 * 24 * 60 * 60 * 1000
+
+const JOURNEY_STATUS = {
+  matched: 'Matched · awaiting patient',
+  accepted: 'Accepted · ready to start',
+  traveling: 'On the way',
+  arrived: 'Arrived at hospital',
+  donating: 'Donating',
+}
 
 function formatDate(date) {
   if (!date) return '—'
@@ -39,27 +47,74 @@ function nextEligibleDays(lastDonationDate) {
 }
 
 export default function DonorDashboard() {
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
+  const navigate = useNavigate()
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [msg, setMsg] = useState('')
+  const [busyId, setBusyId] = useState(null)
+  const [activeJourney, setActiveJourney] = useState([])
+
+  useEffect(() => {
+    if (user?.role !== 'donor') return
+    let active = true
+    const syncUser = () =>
+      api
+        .get('/auth/me')
+        .then(({ data }) => {
+          if (active) updateUser(data.user)
+        })
+        .catch(() => {})
+    syncUser()
+    const timer = setInterval(syncUser, 5000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role])
 
   useEffect(() => {
     if (user?.role !== 'donor') return
     let active = true
     api
-      .get('/requests', { params: { urgency: 'emergency' } })
+      .get('/donors/my-journey')
       .then(({ data }) => {
-        if (active) setRequests(data.requests || [])
+        if (!active) return
+        const list = data.journey || []
+        setActiveJourney(
+          list.filter((r) =>
+            ['matched', 'accepted', 'traveling', 'arrived', 'donating'].includes(r.status),
+          ),
+        )
       })
-      .catch(() => {
-        if (active) setError('Could not load emergency requests')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
+      .catch(() => {})
     return () => {
       active = false
+    }
+  }, [user?.role])
+
+  useEffect(() => {
+    if (user?.role !== 'donor') return
+    let active = true
+    const load = () =>
+      api
+        .get('/requests', { params: { urgency: 'emergency' } })
+        .then(({ data }) => {
+          if (active) setRequests(data.requests || [])
+        })
+        .catch(() => {
+          if (active) setError('Could not load emergency requests')
+        })
+        .finally(() => {
+          if (active) setLoading(false)
+        })
+    load()
+    const timer = setInterval(load, 5000)
+    return () => {
+      active = false
+      clearInterval(timer)
     }
   }, [user?.role])
 
@@ -67,6 +122,25 @@ export default function DonorDashboard() {
   const liveCount = matches.length
   const isAvailable = user?.availableForDonation
   const eligibleDays = nextEligibleDays(user?.lastDonationDate)
+
+  const respond = async (id, action) => {
+    setMsg('')
+    setError('')
+    setBusyId(id)
+    try {
+      const { data } = await api.patch(`/requests/${id}/respond`, { action })
+      if (action === 'accept') {
+        navigate('/journey')
+      } else {
+        setMsg(data.message)
+        setRequests((prev) => prev.filter((r) => r._id !== id))
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Action failed')
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   const details = [
     { label: 'Blood Group', value: user?.bloodGroup || '—', icon: '🩸', accent: true },
@@ -122,6 +196,42 @@ export default function DonorDashboard() {
         </div>
       </div>
 
+      {activeJourney.length > 0 && (
+        <div className="card">
+          <div className="live-head">
+            <h3>Active Donation Journey</h3>
+            <span className="live-badge">
+              <span className="live-dot"></span> Live
+            </span>
+          </div>
+          <div className="request-list">
+            {activeJourney.slice(0, 3).map((r) => (
+              <div key={r._id} className="request-card">
+                <div className="request-card-top">
+                  <span className="status-badge matched">{JOURNEY_STATUS[r.status] || r.status}</span>
+                  <span className="request-blood">{r.bloodGroup}</span>
+                  <span className="request-score">📍 Live</span>
+                </div>
+                <div className="request-card-meta">
+                  <span>👤 {r.patient?.name || 'Patient'}</span>
+                  <span>🏥 {r.hospital || 'Hospital'}</span>
+                  <span>📍 {r.city || '—'}{r.area ? `, ${r.area}` : ''}</span>
+                  <span>🩸 {r.units} unit{r.units > 1 ? 's' : ''}</span>
+                </div>
+                <div className="request-actions">
+                  <Link to={`/tracking/${r._id}`} className="btn primary btn-sm">
+                    Open Live Tracking
+                  </Link>
+                  <Link to="/journey" className="btn ghost btn-sm">
+                    All Journeys
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="live-head">
           <h3>Emergency Blood Requests Near You</h3>
@@ -144,12 +254,12 @@ export default function DonorDashboard() {
           </div>
         ) : (
           <div className="request-list">
+            {msg && <p className="success">{msg}</p>}
             {matches.slice(0, 5).map((r) => (
               <div key={r._id} className="request-card">
                 <div className="request-card-top">
                   <span className={`urgency-badge ${r.urgency}`}>🚨 Emergency</span>
                   <span className="request-blood">{r.bloodGroup}</span>
-                  <span className="request-score">AI {r.matchScore}/100</span>
                 </div>
                 <div className="request-card-meta">
                   <span>🏥 {r.hospital || 'Hospital'}</span>
@@ -158,6 +268,22 @@ export default function DonorDashboard() {
                   <span>⏱ {formatTimeAgo(r.createdAt)}</span>
                 </div>
                 <p className="request-reasons">{r.matchReasons?.join(' · ')}</p>
+                <div className="request-actions">
+                  <button
+                    className="btn primary btn-sm"
+                    disabled={busyId === r._id}
+                    onClick={() => respond(r._id, 'accept')}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn primary btn-sm"
+                    disabled={busyId === r._id}
+                    onClick={() => respond(r._id, 'decline')}
+                  >
+                    Decline
+                  </button>
+                </div>
               </div>
             ))}
           </div>

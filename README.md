@@ -11,6 +11,16 @@ hospitals, and blood banks in real time — powered by AI-based donor matching.
 - Login with protected routes
 - React frontend with Home, Register, Verify OTP, Login, and role dashboards
 
+## Version 3 (current) — Journey
+
+- **Accept / Decline** — donors accept or decline blood requests; patients
+  assign, confirm, or release a matched donor
+- **Live tracking** — a shared journey timeline (matched → accepted → traveling
+  → arrived → donating → completed) with live location updates and auto-refresh
+- **Certificates** — donors get a printable donation certificate with a unique
+  code after each completed donation
+- **History** — donor journey history and certificates page
+
 ## Tech Stack
 
 - **Frontend:** React (Vite), React Router, Axios
@@ -77,9 +87,21 @@ Open http://localhost:5173
 | POST   | `/api/auth/login`   | Login, returns JWT                 |
 | GET    | `/api/auth/me`      | Current user (protected)           |
 
+### Journey API (protected)
+
+| Method | Endpoint                   | Description                              |
+| ------ | -------------------------- | ---------------------------------------- |
+| PATCH  | `/api/requests/:id/respond` | Donor accepts / declines a request      |
+| PATCH  | `/api/requests/:id/donor`   | Patient assigns / confirms / releases donor |
+| PATCH  | `/api/requests/:id/journey` | Advance journey stage, update location, cancel |
+| GET    | `/api/requests/:id/tracking`| Live journey detail (patient or donor)  |
+| GET    | `/api/requests/:id/certificate` | Donation certificate (donor)       |
+| GET    | `/api/donors/my-journey`    | Donor's journey history                 |
+| GET    | `/api/donors/certificates`  | Donor's issued certificates             |
+
 ## Roadmap
 
 - **v1** Foundation — setup, models, OTP auth, dashboards ✅
-- **v2** Core flow — donor profiles, blood requests, search & eligibility
-- **v3** Journey — accept/decline, live tracking, certificates, history
+- **v2** Core flow — donor profiles, blood requests, search & eligibility ✅
+- **v3** Journey — accept/decline, live tracking, certificates, history ✅
 - **v4** Admin, inventory, feedback, polish & deploy
