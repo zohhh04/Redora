@@ -1,8 +1,33 @@
+const crypto = require("crypto")
 const User = require("../models/User")
 const generateToken = require("../utils/generateToken")
-const sendEmail = require("../utils/sendEmail")
+const { sendEmail, otpTemplate, resetPasswordTemplate } = require("../utils/sendEmail")
 
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString()
+
+const MONTHS_MS = 2 * 30 * 24 * 60 * 60 * 1000
+
+function publicUser(user) {
+  const isEligible =
+    !user.lastDonationDate || Date.now() - new Date(user.lastDonationDate).getTime() >= MONTHS_MS
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    mobile: user.mobile,
+    bloodGroup: user.bloodGroup,
+    lastDonationDate: user.lastDonationDate,
+    availableForDonation: user.availableForDonation,
+    availableForEmergencies: user.availableForEmergencies,
+    donationCount: user.donationCount,
+    city: user.city,
+    area: user.area,
+    travelRadiusKm: user.travelRadiusKm,
+    verified: user.verified,
+    isEligible,
+  }
+}
 
 // POST /api/auth/register
 const registerUser = async (req, res) => {
@@ -35,9 +60,38 @@ const registerUser = async (req, res) => {
       to: user.email,
       subject: "Redora - Verify your email",
       text: `Your Redora verification OTP is: ${otp}. It is valid for 10 minutes.`,
+      html: otpTemplate({ otp }),
     })
 
     res.status(201).json({ message: "OTP sent to your email. Please verify to continue." })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+// POST /api/auth/resend-otp
+const resendOtp = async (req, res) => {
+  try {
+    const { email } = req.body
+    if (!email) return res.status(400).json({ message: "Please provide your email" })
+
+    const user = await User.findOne({ email: email.toLowerCase() })
+    if (!user) return res.status(404).json({ message: "User not found" })
+    if (user.verified) return res.status(400).json({ message: "Account already verified" })
+
+    const otp = generateOtp()
+    user.otp = otp
+    user.otpExpires = Date.now() + 10 * 60 * 1000
+    await user.save()
+
+    await sendEmail({
+      to: user.email,
+      subject: "Redora - Your new verification OTP",
+      text: `Your Redora verification OTP is: ${otp}. It is valid for 10 minutes.`,
+      html: otpTemplate({ otp }),
+    })
+
+    res.json({ message: "A new OTP has been sent to your email" })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -63,13 +117,7 @@ const verifyOtp = async (req, res) => {
     res.json({
       message: "Email verified. You can now login.",
       token: generateToken(user._id),
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        verified: user.verified,
-      },
+      user: publicUser(user),
     })
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -93,13 +141,7 @@ const loginUser = async (req, res) => {
     res.json({
       message: "Login successful",
       token: generateToken(user._id),
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        verified: user.verified,
-      },
+      user: publicUser(user),
     })
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -108,36 +150,23 @@ const loginUser = async (req, res) => {
 
 // GET /api/auth/me (protected)
 const getMe = async (req, res) => {
-  const user = req.user
-
-  const MONTHS_MS = 2 * 30 * 24 * 60 * 60 * 1000
-  const isEligible =
-    !user.lastDonationDate || Date.now() - new Date(user.lastDonationDate).getTime() >= MONTHS_MS
-
-  res.json({
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      mobile: user.mobile,
-      bloodGroup: user.bloodGroup,
-      lastDonationDate: user.lastDonationDate,
-      verified: user.verified,
-      isEligible,
-    },
-  })
+  res.json({ user: publicUser(req.user) })
 }
 
 // PUT /api/auth/profile (protected) - update donor profile
 const updateProfile = async (req, res) => {
   try {
     const user = req.user
-    const { bloodGroup, lastDonationDate, mobile, newPassword } = req.body
+    const { bloodGroup, lastDonationDate, mobile, availableForDonation, availableForEmergencies, city, area, travelRadiusKm, newPassword } = req.body
 
     if (bloodGroup !== undefined) user.bloodGroup = bloodGroup
     if (lastDonationDate !== undefined) user.lastDonationDate = lastDonationDate || null
     if (mobile !== undefined) user.mobile = mobile
+    if (availableForDonation !== undefined) user.availableForDonation = availableForDonation
+    if (availableForEmergencies !== undefined) user.availableForEmergencies = availableForEmergencies
+    if (city !== undefined) user.city = city
+    if (area !== undefined) user.area = area
+    if (travelRadiusKm !== undefined) user.travelRadiusKm = Number(travelRadiusKm) || 25
     if (newPassword) {
       if (newPassword.length < 6) {
         return res.status(400).json({ message: "Password must be at least 6 characters" })
@@ -147,23 +176,9 @@ const updateProfile = async (req, res) => {
 
     await user.save()
 
-    const MONTHS_MS = 2 * 30 * 24 * 60 * 60 * 1000
-    const isEligible =
-      !user.lastDonationDate || Date.now() - new Date(user.lastDonationDate).getTime() >= MONTHS_MS
-
     res.json({
       message: "Profile updated successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        mobile: user.mobile,
-        bloodGroup: user.bloodGroup,
-        lastDonationDate: user.lastDonationDate,
-        verified: user.verified,
-        isEligible,
-      },
+      user: publicUser(user),
     })
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -179,20 +194,60 @@ const forgotPassword = async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase() })
     if (!user) return res.status(404).json({ message: "No account found with this email" })
 
-    const tempPassword = Math.random().toString(36).slice(-8)
-    user.password = tempPassword
+    const rawToken = crypto.randomBytes(32).toString("hex")
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex")
+
+    user.resetPasswordToken = hashedToken
+    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000 // 1 hour
     await user.save()
+
+    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173"
+    const resetLink = `${clientUrl}/reset-password?token=${rawToken}`
 
     await sendEmail({
       to: user.email,
-      subject: "Redora - Temporary password",
-      text: `Hello ${user.name},\n\nA password reset was requested for your Redora account.\n\nYour temporary password is: ${tempPassword}\n\nPlease login with it and change your password from your profile.\n\n- Redora Team`,
+      subject: "Redora - Reset your password",
+      text: `Hello ${user.name},\n\nA password reset was requested for your Redora account.\n\nClick the link below to set a new password (valid for 1 hour):\n${resetLink}\n\nIf you didn't request this, you can safely ignore this email.\n\n- Redora Team`,
+      html: resetPasswordTemplate({ name: user.name, resetLink }),
     })
 
-    res.json({ message: "A temporary password has been sent to your email" })
+    res.json({ message: "A password reset link has been sent to your email" })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
 }
 
-module.exports = { registerUser, verifyOtp, loginUser, getMe, updateProfile, forgotPassword }
+// POST /api/auth/reset-password
+const resetPassword = async (req, res) => {
+  try {
+    const { token, password, confirmPassword } = req.body
+    if (!token) return res.status(400).json({ message: "Reset token is required" })
+    if (!password || !confirmPassword) {
+      return res.status(400).json({ message: "Please enter your new password and confirm it" })
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" })
+    }
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" })
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex")
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    })
+    if (!user) return res.status(400).json({ message: "Invalid or expired reset link" })
+
+    user.password = password
+    user.resetPasswordToken = null
+    user.resetPasswordExpires = null
+    await user.save()
+
+    res.json({ message: "Password reset successful. You can now login with your new password." })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+module.exports = { registerUser, resendOtp, verifyOtp, loginUser, getMe, updateProfile, forgotPassword, resetPassword }

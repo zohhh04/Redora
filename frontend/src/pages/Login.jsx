@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 import { useAuth } from '../context/AuthContext'
+import PasswordInput from '../components/PasswordInput'
 
 export default function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
 
-  const [role, setRole] = useState('donor')
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,12 +19,7 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      const { data } = await api.post('/auth/login', { ...form, role })
-      if (data.user.role !== role) {
-        setError(`This account is registered as a ${data.user.role}. Please select the correct role.`)
-        setLoading(false)
-        return
-      }
+      const { data } = await api.post('/auth/login', { email: form.email, password: form.password })
       login(data.token, data.user)
       navigate(data.user.role === 'patient' ? '/dashboard' : '/profile')
     } catch (err) {
@@ -38,25 +33,6 @@ export default function Login() {
     <div className="page">
       <form className="card" onSubmit={handleSubmit}>
         <h2>Login to Redora</h2>
-        <p className="hint">Who are you logging in as?</p>
-
-        <div className="role-selector">
-          <button
-            type="button"
-            className={`role-option ${role === 'donor' ? 'active' : ''}`}
-            onClick={() => setRole('donor')}
-          >
-            🩸 Donor
-          </button>
-          <button
-            type="button"
-            className={`role-option ${role === 'patient' ? 'active' : ''}`}
-            onClick={() => setRole('patient')}
-          >
-            ❤️ Patient
-          </button>
-        </div>
-
         {error && <p className="error">{error}</p>}
         <input
           name="email"
@@ -66,9 +42,8 @@ export default function Login() {
           onChange={handleChange}
           required
         />
-        <input
+        <PasswordInput
           name="password"
-          type="password"
           placeholder="Password"
           value={form.password}
           onChange={handleChange}
@@ -81,8 +56,7 @@ export default function Login() {
           {loading ? 'Logging in...' : 'Login'}
         </button>
         <p className="hint">
-          New here?{' '}
-          <Link to={`/register?role=${role}`}>Register as {role}</Link>
+          New here? <Link to="/register">Register</Link>
         </p>
       </form>
     </div>

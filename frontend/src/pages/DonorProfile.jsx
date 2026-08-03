@@ -1,8 +1,7 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
-
-const MONTHS_MS = 2 * 30 * 24 * 60 * 60 * 1000
 
 const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
@@ -15,12 +14,17 @@ function toInputDate(date) {
 }
 
 export default function DonorProfile() {
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
+  const navigate = useNavigate()
   const [form, setForm] = useState({
     bloodGroup: user?.bloodGroup || '',
     lastDonationDate: toInputDate(user?.lastDonationDate),
     mobile: user?.mobile || '',
-    newPassword: '',
+    availableForDonation: user?.availableForDonation ?? false,
+    availableForEmergencies: user?.availableForEmergencies ?? false,
+    city: user?.city || '',
+    area: user?.area || '',
+    travelRadiusKm: user?.travelRadiusKm || 25,
   })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -28,10 +32,10 @@ export default function DonorProfile() {
 
   if (!user) return null
 
-  const isEligible =
-    !user.lastDonationDate || Date.now() - new Date(user.lastDonationDate).getTime() >= MONTHS_MS
-
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target
+    setForm({ ...form, [name]: type === 'checkbox' ? checked : value })
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -43,10 +47,15 @@ export default function DonorProfile() {
         bloodGroup: form.bloodGroup,
         lastDonationDate: form.lastDonationDate || null,
         mobile: form.mobile,
-        newPassword: form.newPassword || undefined,
+        availableForDonation: form.availableForDonation,
+        availableForEmergencies: form.availableForEmergencies,
+        city: form.city,
+        area: form.area,
+        travelRadiusKm: form.travelRadiusKm,
       })
       setSuccess(data.message)
-      setForm({ ...form, newPassword: '' })
+      updateUser(data.user)
+      navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save profile')
     } finally {
@@ -55,10 +64,8 @@ export default function DonorProfile() {
   }
 
   return (
-    <div className="page">
-      <h2>Donor Profile</h2>
-
-      <form className="card" onSubmit={handleSubmit}>
+    <div className="page profile-page">
+      <form className="card profile-form" onSubmit={handleSubmit}>
         <h3>Donor Details</h3>
 
         <label className="field">
@@ -103,34 +110,73 @@ export default function DonorProfile() {
             onChange={handleChange}
           />
         </label>
+
+        <div className="form-grid-2">
+          <label className="field">
+            <span>City</span>
+            <input
+              name="city"
+              placeholder="e.g. Hyderabad"
+              value={form.city}
+              onChange={handleChange}
+            />
+          </label>
+          <label className="field">
+            <span>Area / Locality</span>
+            <input
+              name="area"
+              placeholder="e.g. Kukatpally"
+              value={form.area}
+              onChange={handleChange}
+            />
+          </label>
+        </div>
+
         <label className="field">
-          <span>New Password (optional, leave blank to keep current)</span>
+          <span>Travel Radius (km)</span>
           <input
-            type="password"
-            name="newPassword"
-            placeholder="Enter new password"
-            value={form.newPassword}
+            type="number"
+            min="1"
+            max="200"
+            name="travelRadiusKm"
+            placeholder="How far you can travel to donate"
+            value={form.travelRadiusKm}
             onChange={handleChange}
           />
+        </label>
+
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            name="availableForDonation"
+            checked={form.availableForDonation}
+            onChange={handleChange}
+          />
+          <span>
+            <strong>Available for donation</strong>
+            <small>Show me as a donor who can give blood when a request comes in.</small>
+          </span>
+        </label>
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            name="availableForEmergencies"
+            checked={form.availableForEmergencies}
+            onChange={handleChange}
+          />
+          <span>
+            <strong>Available for emergencies</strong>
+            <small>Notify me first for urgent blood requests near me.</small>
+          </span>
         </label>
 
         {error && <p className="error">{error}</p>}
         {success && <p className="success">{success}</p>}
 
-        <button className="btn primary" disabled={loading}>
+        <button className="btn primary btn-lg" disabled={loading}>
           {loading ? 'Saving...' : 'Save Profile'}
         </button>
-        <p className="hint">Registration details (name, email) are fixed and cannot be changed.</p>
       </form>
-
-      <div className={`card ${isEligible ? 'card-ok' : 'card-warn'}`}>
-        <h3>Eligibility</h3>
-        <p>
-          {isEligible
-            ? '✅ Eligible to donate — last donation was at least 2 months ago.'
-            : '⏳ Not eligible yet — donations are accepted only if the last donation was at least 2 months ago.'}
-        </p>
-      </div>
     </div>
   )
 }

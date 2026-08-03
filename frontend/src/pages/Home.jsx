@@ -1,5 +1,4 @@
 import Hero from '../components/home/Hero'
-import Stats from '../components/home/Stats'
 import BloodTypes from '../components/home/BloodTypes'
 import HowItWorks from '../components/home/HowItWorks'
 import Features from '../components/home/Features'
@@ -12,7 +11,6 @@ export default function Home() {
   return (
     <div className="home">
       <Hero />
-      <Stats />
       <BloodTypes />
       <HowItWorks />
       <Features />

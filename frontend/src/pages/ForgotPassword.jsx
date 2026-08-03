@@ -29,7 +29,7 @@ export default function ForgotPassword() {
       <form className="card" onSubmit={handleSubmit}>
         <h2>Forgot Password</h2>
         <p className="hint">
-          Enter the email you registered with. A temporary password will be sent to your email.
+          Enter the email you registered with. We'll send you a link to reset your password.
         </p>
         {error && <p className="error">{error}</p>}
         {success && <p className="success">{success}</p>}
@@ -40,18 +40,8 @@ export default function ForgotPassword() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <div className="resend-row">
-          <button
-            type="button"
-            className="link-btn"
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? 'Resending...' : 'Resend password'}
-          </button>
-        </div>
         <button className="btn primary" disabled={loading}>
-          {loading ? 'Sending...' : 'Send Temporary Password'}
+          {loading ? 'Sending...' : 'Send Reset Link'}
         </button>
         <p className="hint">
           Remembered your password? <Link to="/login">Login</Link>
