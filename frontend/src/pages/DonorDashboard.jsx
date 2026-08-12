@@ -55,6 +55,8 @@ export default function DonorDashboard() {
   const [msg, setMsg] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [activeJourney, setActiveJourney] = useState([])
+  const [notifications, setNotifications] = useState([])
+  const [notifMsg, setNotifMsg] = useState('')
 
   useEffect(() => {
     if (user?.role !== 'donor') return
@@ -73,6 +75,24 @@ export default function DonorDashboard() {
       clearInterval(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role])
+
+  useEffect(() => {
+    if (user?.role !== 'donor') return
+    let active = true
+    const load = () =>
+      api
+        .get('/notifications')
+        .then(({ data }) => {
+          if (active) setNotifications(data.notifications || [])
+        })
+        .catch(() => {})
+    load()
+    const timer = setInterval(load, 5000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
   }, [user?.role])
 
   useEffect(() => {
@@ -142,6 +162,35 @@ export default function DonorDashboard() {
     }
   }
 
+  const handleNotification = async (id, action) => {
+    setNotifMsg('')
+    setError('')
+    try {
+      const { data } = await api.patch(`/requests/${id}/respond`, { action })
+      if (action === 'accept') {
+        navigate(`/tracking/donor/${id}`)
+      } else {
+        setNotifMsg(data.message)
+        setNotifications((prev) => prev.filter((n) => n.request?._id !== id))
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Action failed')
+    }
+  }
+
+  const markAllRead = async () => {
+    setNotifMsg('')
+    try {
+      await api.patch('/notifications/read-all')
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+      setNotifMsg('All notifications marked as read')
+    } catch {
+      setError('Could not update notifications')
+    }
+  }
+
+  const unreadCount = notifications.filter((n) => !n.read).length
+
   const details = [
     { label: 'Blood Group', value: user?.bloodGroup || '—', icon: '🩸', accent: true },
     { label: 'Emergency', value: user?.availableForEmergencies ? 'On' : 'Off', icon: '🚨' },
@@ -183,6 +232,72 @@ export default function DonorDashboard() {
         </div>
       </div>
 
+      {notifications.length > 0 && (
+        <div className="card">
+          <div className="live-head">
+            <h3>
+              Notifications{' '}
+              {unreadCount > 0 && <span className="notif-badge-inline">{unreadCount}</span>}
+            </h3>
+            <div className="live-head-actions">
+              <button type="button" className="btn ghost btn-sm" onClick={markAllRead} disabled={unreadCount === 0}>
+                Mark all read
+              </button>
+              <Link to="/notifications" className="btn ghost btn-sm">
+                View all
+              </Link>
+            </div>
+          </div>
+          {notifMsg && <p className="success">{notifMsg}</p>}
+          <div className="notif-list">
+            {notifications.slice(0, 5).map((n) => {
+              const r = n.request
+              const open = r && r.status === 'open'
+              return (
+                <div key={n._id} className={`notif-row ${n.read ? '' : 'notif-unread'}`}>
+                  <div className="notif-row-left">
+                    <span className="notif-row-icon">🩸</span>
+                  </div>
+                  <div className="notif-row-body">
+                    <p className="notif-row-title">{n.title}</p>
+                    <p className="notif-row-text">{n.body}</p>
+                    <div className="notif-row-meta">
+                      <span className={`notif-read ${n.read ? 'read' : ''}`}>{n.read ? 'Read' : 'New'}</span>
+                      <span className="notif-row-time">{formatTimeAgo(n.createdAt)}</span>
+                    </div>
+                    {open && (
+                      <div className="request-actions notif-actions">
+                        <button
+                          className="btn primary btn-sm"
+                          disabled={busyId === r._id}
+                          onClick={() => handleNotification(r._id, 'accept')}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          className="btn ghost btn-sm"
+                          disabled={busyId === r._id}
+                          onClick={() => handleNotification(r._id, 'decline')}
+                        >
+                          Decline
+                        </button>
+                        <button
+                          className="btn ghost btn-sm"
+                          disabled={busyId === r._id}
+                          onClick={() => handleNotification(r._id, 'delay')}
+                        >
+                          ⏰ Delay 30 min
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <h3>Donor Overview</h3>
         <div className="stat-tiles">
@@ -219,7 +334,7 @@ export default function DonorDashboard() {
                   <span>🩸 {r.units} unit{r.units > 1 ? 's' : ''}</span>
                 </div>
                 <div className="request-actions">
-                  <Link to={`/tracking/${r._id}`} className="btn primary btn-sm">
+                  <Link to={`/tracking/donor/${r._id}`} className="btn primary btn-sm">
                     Open Live Tracking
                   </Link>
                   <Link to="/journey" className="btn ghost btn-sm">
@@ -277,11 +392,11 @@ export default function DonorDashboard() {
                     Accept
                   </button>
                   <button
-                    className="btn primary btn-sm"
+                    className="btn ghost btn-sm"
                     disabled={busyId === r._id}
-                    onClick={() => respond(r._id, 'decline')}
+                    onClick={() => respond(r._id, 'delay')}
                   >
-                    Decline
+                    ⏰ Delay 30 min
                   </button>
                 </div>
               </div>

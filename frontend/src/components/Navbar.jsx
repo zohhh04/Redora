@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import ThemeToggle from './ThemeToggle'
+import api from '../api/axios'
 
 export default function Navbar() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
+  const [unread, setUnread] = useState(0)
   const location = useLocation()
   const onHome = location.pathname === '/'
 
@@ -14,6 +18,24 @@ export default function Navbar() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  useEffect(() => {
+    if (user?.role !== 'donor') return
+    let active = true
+    const load = () =>
+      api
+        .get('/notifications', { params: { unread: 'true' } })
+        .then(({ data }) => {
+          if (active) setUnread(data.unreadCount || 0)
+        })
+        .catch(() => {})
+    load()
+    const timer = setInterval(load, 10000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [user?.role, location.pathname])
 
   const className = `navbar ${scrolled || !onHome ? 'navbar-solid' : ''}`
 
@@ -33,6 +55,19 @@ export default function Navbar() {
       )}
 
       <div className="nav-actions">
+        <ThemeToggle />
+        {user && user.role === 'donor' && (
+          <button
+            type="button"
+            className="notif-bell"
+            onClick={() => navigate('/notifications')}
+            aria-label="Notifications"
+            title="Notifications"
+          >
+            🔔
+            {unread > 0 && <span className="notif-badge">{unread > 9 ? '9+' : unread}</span>}
+          </button>
+        )}
         {user ? (
           user.role === 'donor' ? (
             <>

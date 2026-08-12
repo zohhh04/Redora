@@ -49,14 +49,14 @@ export default function Requests() {
 
   const respond = async (id, action) => {
     if (action === 'accept' && !window.confirm('Accept this request? The patient will need to confirm you.')) return
-    if (action === 'decline' && !window.confirm('Decline this request? It will stay open for other donors.')) return
+    if (action === 'delay' && !window.confirm('Delay this request? You will not see it again for 30 minutes.')) return
     setMsg('')
     setError('')
     try {
       const { data } = await api.patch(`/requests/${id}/respond`, { action })
       setMsg(action === 'accept' ? 'You accepted the request. The patient will confirm your donation.' : data.message)
       if (action === 'accept') {
-        navigate(`/tracking/${id}`)
+        navigate(`/tracking/donor/${id}`)
       } else {
         load()
       }
@@ -140,8 +140,8 @@ export default function Requests() {
                       <button className="btn primary btn-sm" onClick={() => respond(r._id, 'accept')}>
                         Accept Request
                       </button>
-                      <button className="btn ghost btn-sm" onClick={() => respond(r._id, 'decline')}>
-                        Decline
+                      <button className="btn ghost btn-sm" onClick={() => respond(r._id, 'delay')}>
+                        ⏰ Delay 30 min
                       </button>
                     </div>
                   </div>

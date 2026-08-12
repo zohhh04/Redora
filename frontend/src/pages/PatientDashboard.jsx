@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
@@ -26,6 +26,7 @@ export default function PatientDashboard() {
   const navigate = useNavigate()
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
+  const prevStatusRef = useRef({})
 
   const [search, setSearch] = useState({ bloodGroup: '', city: '', available: true })
   const [searchResults, setSearchResults] = useState([])
@@ -43,6 +44,28 @@ export default function PatientDashboard() {
   useEffect(() => {
     loadRequests()
   }, [])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      api
+        .get('/requests/my')
+        .then(({ data }) => {
+          const list = data.requests || []
+          setRequests(list)
+          const next = {}
+          list.forEach((r) => {
+            const prev = prevStatusRef.current[r._id]
+            next[r._id] = r.status
+            if (prev === 'open' && r.status === 'matched') {
+              navigate(`/tracking/patient/${r._id}`)
+            }
+          })
+          prevStatusRef.current = next
+        })
+        .catch(() => {})
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [navigate])
 
   const handleSearchChange = (e) =>
     setSearch({ ...search, [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
@@ -115,7 +138,7 @@ export default function PatientDashboard() {
           <>
             <button
               className="btn primary btn-sm"
-              onClick={() => manageDonor(r._id, 'confirm', `/tracking/${r._id}`)}
+              onClick={() => manageDonor(r._id, 'confirm', `/tracking/patient/${r._id}`)}
             >
               Accept Donor
             </button>
@@ -128,12 +151,12 @@ export default function PatientDashboard() {
           </>
         )}
         {['accepted', 'traveling', 'arrived', 'donating'].includes(r.status) && (
-          <Link to={`/tracking/${r._id}`} className="btn primary btn-sm">
+          <Link to={`/tracking/patient/${r._id}`} className="btn primary btn-sm">
             📍 Track Live
           </Link>
         )}
         {r.status === 'completed' && (
-          <Link to={`/tracking/${r._id}`} className="btn ghost btn-sm">
+          <Link to={`/tracking/patient/${r._id}`} className="btn ghost btn-sm">
             View Journey
           </Link>
         )}

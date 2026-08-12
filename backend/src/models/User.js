@@ -16,6 +16,11 @@ const userSchema = new mongoose.Schema(
     city: { type: String, default: "" },
     area: { type: String, default: "" },
     travelRadiusKm: { type: Number, default: 25 },
+    location: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      label: { type: String, default: "" },
+    },
     verified: { type: Boolean, default: false },
     otp: { type: String, default: null },
     otpExpires: { type: Date, default: null },

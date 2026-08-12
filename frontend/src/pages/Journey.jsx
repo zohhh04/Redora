@@ -132,7 +132,7 @@ export default function Journey() {
           <h3>Active Journeys ({active.length})</h3>
           <div className="request-list">
             {active.map((r) => (
-              <RequestCard key={r._id} r={r} trackLink={`/tracking/${r._id}`} />
+              <RequestCard key={r._id} r={r} trackLink={`/tracking/donor/${r._id}`} />
             ))}
           </div>
         </div>

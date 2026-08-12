@@ -19,8 +19,14 @@ const requestSchema = new mongoose.Schema(
     units: { type: Number, default: 1, min: 1 },
     hospital: { type: String, trim: true, default: "" },
     phone: { type: String, trim: true, default: "" },
+    hospitalPhone: { type: String, trim: true, default: "" },
     city: { type: String, trim: true, default: "" },
     area: { type: String, trim: true, default: "" },
+    location: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      label: { type: String, default: "" },
+    },
     urgency: { type: String, enum: ["normal", "emergency"], default: "normal" },
     status: {
       type: String,
@@ -30,6 +36,12 @@ const requestSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
     matchedDonor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     declinedDonors: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    delayedDonors: [
+      {
+        donor: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        until: { type: Date, default: null },
+      },
+    ],
     journey: [journeyEntrySchema],
     certificate: {
       code: { type: String, default: null },

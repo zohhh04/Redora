@@ -24,6 +24,7 @@ function publicUser(user) {
     city: user.city,
     area: user.area,
     travelRadiusKm: user.travelRadiusKm,
+    location: user.location,
     verified: user.verified,
     isEligible,
   }
@@ -157,7 +158,7 @@ const getMe = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const user = req.user
-    const { bloodGroup, lastDonationDate, mobile, availableForDonation, availableForEmergencies, city, area, travelRadiusKm, newPassword } = req.body
+    const { bloodGroup, lastDonationDate, mobile, availableForDonation, availableForEmergencies, city, area, travelRadiusKm, location, newPassword } = req.body
 
     if (bloodGroup !== undefined) user.bloodGroup = bloodGroup
     if (lastDonationDate !== undefined) user.lastDonationDate = lastDonationDate || null
@@ -167,6 +168,13 @@ const updateProfile = async (req, res) => {
     if (city !== undefined) user.city = city
     if (area !== undefined) user.area = area
     if (travelRadiusKm !== undefined) user.travelRadiusKm = Number(travelRadiusKm) || 25
+    if (location && location.lat != null && location.lng != null) {
+      user.location = {
+        lat: Number(location.lat),
+        lng: Number(location.lng),
+        label: location.label || "",
+      }
+    }
     if (newPassword) {
       if (newPassword.length < 6) {
         return res.status(400).json({ message: "Password must be at least 6 characters" })
@@ -201,7 +209,7 @@ const forgotPassword = async (req, res) => {
     user.resetPasswordExpires = Date.now() + 60 * 60 * 1000 // 1 hour
     await user.save()
 
-    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173"
+    const clientUrl = process.env.CLIENT_URL || "http://localhost:5174"
     const resetLink = `${clientUrl}/reset-password?token=${rawToken}`
 
     await sendEmail({

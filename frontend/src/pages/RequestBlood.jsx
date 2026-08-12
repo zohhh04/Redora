@@ -9,8 +9,7 @@ const emptyForm = {
   units: 1,
   hospital: '',
   phone: '',
-  city: '',
-  area: '',
+  location: '',
   urgency: 'emergency',
   notes: '',
 }
@@ -20,17 +19,65 @@ export default function RequestBlood() {
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [verify, setVerify] = useState({ status: 'idle', match: null, message: '' })
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+
+  const verifyHospital = async () => {
+    setError('')
+    if (!form.hospital.trim()) return setError('Enter the hospital name to verify')
+    if (!form.location.trim()) return setError('Enter the location to verify')
+    setVerify({ status: 'checking', match: null, message: '' })
+    try {
+      const { data } = await api.get('/geo/verify-hospital', {
+        params: { name: form.hospital, location: form.location },
+      })
+      if (data.verified) {
+        setVerify({
+          status: 'verified',
+          match: data.match,
+          message: `✓ "${form.hospital}" confirmed at this location.`,
+        })
+      } else if (data.reason === 'location-mismatch') {
+        setVerify({
+          status: 'mismatch',
+          match: data.match,
+          message: `✗ Found "${form.hospital}" but at a different location (${data.match.label}). Please correct the location.`,
+        })
+      } else {
+        setVerify({
+          status: 'notfound',
+          match: null,
+          message: `✗ No hospital named "${form.hospital}" found at "${form.location}".`,
+        })
+      }
+    } catch (err) {
+      setVerify({
+        status: 'error',
+        match: null,
+        message: err.response?.data?.message || 'Verification failed. Please try again.',
+      })
+    }
+  }
 
   const createRequest = async (e) => {
     e.preventDefault()
     setError('')
     if (!form.bloodGroup) return setError('Please select a blood group')
+    if (!form.location.trim()) return setError('Please enter the location of the patient')
+    if (verify.status !== 'verified') {
+      return setError('Please verify the hospital & location first using the Verify button.')
+    }
     setSubmitting(true)
     try {
-      await api.post('/requests', form)
-      navigate('/dashboard')
+      const coords = {
+        lat: verify.match.lat,
+        lng: verify.match.lon,
+        label: verify.match.label,
+      }
+
+      const { data } = await api.post('/requests', { ...form, location: coords })
+      navigate(`/requests/${data.request._id}/nearby`)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create request')
     } finally {
@@ -76,22 +123,30 @@ export default function RequestBlood() {
           <input
             name="phone"
             type="tel"
-            placeholder="Contact Number"
+            placeholder="Hospital / contact number for the donor to call"
             value={form.phone}
             onChange={handleChange}
           />
         </label>
 
-        <div className="form-grid-2">
-          <label className="field">
-            <span>City</span>
-            <input name="city" placeholder="e.g. Hyderabad" value={form.city} onChange={handleChange} />
-          </label>
-          <label className="field">
-            <span>Area / Locality</span>
-            <input name="area" placeholder="e.g. Kukatpally" value={form.area} onChange={handleChange} />
-          </label>
-        </div>
+        <label className="field">
+          <span>Location</span>
+          <input name="location" placeholder="e.g. Hyderabad, Kukatpally" value={form.location} onChange={handleChange} />
+        </label>
+
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={verifyHospital}
+          disabled={verify.status === 'checking'}
+        >
+          {verify.status === 'checking' ? 'Verifying…' : 'Verify Hospital & Location'}
+        </button>
+
+        {verify.status === 'verified' && <p className="success">{verify.message}</p>}
+        {verify.status === 'mismatch' && <p className="error">{verify.message}</p>}
+        {verify.status === 'notfound' && <p className="error">{verify.message}</p>}
+        {verify.status === 'error' && <p className="error">{verify.message}</p>}
 
         <label className="field">
           <span>Urgency</span>

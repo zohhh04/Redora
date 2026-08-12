@@ -11,6 +11,21 @@ const COMPATIBILITY = {
 
 const MONTHS_MS = 2 * 30 * 24 * 60 * 60 * 1000
 
+function toRad(deg) {
+  return (deg * Math.PI) / 180
+}
+
+// Distance in km between two coordinates (haversine)
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
+
 function canDonateTo(donorBlood, patientBlood) {
   const list = COMPATIBILITY[donorBlood]
   return !!list && list.includes(patientBlood)
@@ -110,4 +125,4 @@ function scoreRequestForDonor(request, donor) {
   return { eligible: true, score: Math.min(100, score), reasons }
 }
 
-module.exports = { COMPATIBILITY, canDonateTo, isEligible, scoreDonorForRequest, scoreRequestForDonor }
+module.exports = { COMPATIBILITY, canDonateTo, isEligible, haversineKm, scoreDonorForRequest, scoreRequestForDonor }
