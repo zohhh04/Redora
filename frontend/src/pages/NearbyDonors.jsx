@@ -8,17 +8,23 @@ const EXPAND_STEP_KM = 5
 const INTERVAL_SECONDS = 5 * 60
 
 const reqIcon = L.divIcon({
-  className: '',
-  html: '<div style="width:26px;height:26px;border-radius:50%;background:#c8102e;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)"></div>',
-  iconSize: [26, 26],
-  iconAnchor: [13, 13],
+  className: 'map-pin map-pin-hospital',
+  html: `
+    <div class="map-pin-dot"></div>
+    <div class="map-pin-tail"></div>`,
+  iconSize: [34, 42],
+  iconAnchor: [17, 42],
+  popupAnchor: [0, -40],
 })
 
 const donorIcon = L.divIcon({
-  className: '',
-  html: '<div style="width:20px;height:20px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>',
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
+  className: 'map-pin map-pin-donor',
+  html: `
+    <div class="map-pin-dot"></div>
+    <div class="map-pin-tail"></div>`,
+  iconSize: [32, 40],
+  iconAnchor: [16, 40],
+  popupAnchor: [0, -38],
 })
 
 function formatCountdown(totalSeconds) {
@@ -27,10 +33,17 @@ function formatCountdown(totalSeconds) {
   return `${m}m ${String(s).padStart(2, '0')}s`
 }
 
+function parseGps(loc) {
+  const m = typeof loc === 'string' ? loc.match(/lat:([\d.-]+),lng:([\d.-]+)/) : null
+  return m ? { lat: parseFloat(m[1]), lng: parseFloat(m[2]) } : null
+}
+
 export default function NearbyDonors() {
   const { id } = useParams()
   const mapEl = useRef(null)
   const mapRef = useRef(null)
+  const circleRef = useRef(null)
+  const centerRef = useRef(null)
   const [request, setRequest] = useState(null)
   const [bloodGroup, setBloodGroup] = useState('')
   const [donors, setDonors] = useState([])
@@ -40,6 +53,8 @@ export default function NearbyDonors() {
   const [countdown, setCountdown] = useState(INTERVAL_SECONDS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [liveDonor, setLiveDonor] = useState(null)
+  const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -102,15 +117,17 @@ export default function NearbyDonors() {
     }
   }, [center, bloodGroup, radiusKm, id])
 
-  // Expand the search radius every 5 minutes.
+  // Expand the search radius every 5 minutes, but ONLY while no donors have
+  // been found. Once at least one donor appears, the radius stays locked.
   useEffect(() => {
     if (!center) return
+    if (donors.length > 0) return
     const timer = setTimeout(() => {
       setRadiusKm((r) => r + EXPAND_STEP_KM)
       setCountdown(INTERVAL_SECONDS)
     }, countdown * 1000)
     return () => clearTimeout(timer)
-  }, [center, countdown])
+  }, [center, countdown, donors.length])
 
   // Render the map once, showing the request location and donor markers.
   useEffect(() => {
@@ -126,8 +143,26 @@ export default function NearbyDonors() {
       .addTo(map)
       .bindPopup(`📍 ${request?.hospital || 'Request location'}<br/><small>${request?.location?.label || ''}</small>`)
 
+    if (center) {
+      centerRef.current = center
+    }
+    circleRef.current = L.circle([center.lat, center.lng], {
+      radius: radiusKm * 1000,
+      color: '#c8102e',
+      fillColor: '#c8102e',
+      fillOpacity: 0.12,
+      weight: 2.5,
+      dashArray: '6 6',
+    }).addTo(map)
+
     mapRef.current = map
-  }, [loading, center, request?.hospital, request?.location?.label])
+    setMapReady(true)
+  }, [loading, center, request?.hospital, request?.location?.label, radiusKm])
+
+  // Keep the red radius circle in sync with the current search radius.
+  useEffect(() => {
+    if (circleRef.current) circleRef.current.setRadius(radiusKm * 1000)
+  }, [radiusKm])
 
   // Draw donor markers whenever the donor list updates.
   useEffect(() => {
@@ -144,6 +179,79 @@ export default function NearbyDonors() {
     })
     mapRef.current._donorMarkers = layer
   }, [donors])
+
+  // Poll the request's live tracking and surface the matched donor's LIVE pin.
+  useEffect(() => {
+    let active = true
+    const load = () =>
+      api
+        .get(`/requests/${id}/tracking`)
+        .then(({ data }) => {
+          if (!active) return
+          const r = data.request
+          if (!r.matchedDonor) {
+            setLiveDonor(null)
+            return
+          }
+          const md = r.matchedDonor
+          const live =
+            r.liveLocation && r.liveLocation.lat != null
+              ? { lat: r.liveLocation.lat, lng: r.liveLocation.lng }
+              : null
+          const traveling = [...(r.journey || [])]
+            .reverse()
+            .find((e) => e.stage === 'traveling')
+          const home =
+            md.location && md.location.lat != null
+              ? { lat: md.location.lat, lng: md.location.lng }
+              : null
+          const fromLive = live || (traveling ? parseGps(traveling.location) : null)
+          const pos = fromLive || home
+          setLiveDonor(
+            pos ? { ...pos, name: md.name || '', live: Boolean(fromLive) } : null,
+          )
+        })
+        .catch(() => {})
+    load()
+    const timer = setInterval(load, 4000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [id])
+
+  // Draw / move the live matched-donor pin on the map.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const marker = map._liveDonorMarker
+    if (!liveDonor) {
+      if (marker) {
+        map.removeLayer(marker)
+        map._liveDonorMarker = null
+      }
+      return
+    }
+    if (marker) {
+      const [mlat, mlng] = marker.getLatLng()
+      if (mlat === liveDonor.lat && mlng === liveDonor.lng) return
+      marker.setLatLng([liveDonor.lat, liveDonor.lng])
+    } else {
+      map._liveDonorMarker = L.marker([liveDonor.lat, liveDonor.lng], { icon: donorIcon })
+        .addTo(map)
+        .bindPopup(`🛞 ${liveDonor.name || 'Matched donor'} — matched to this request`)
+    }
+    const c = centerRef.current
+    if (c) {
+      map.fitBounds(
+        L.latLngBounds([
+          [c.lat, c.lng],
+          [liveDonor.lat, liveDonor.lng],
+        ]),
+        { padding: [50, 50] },
+      )
+    }
+  }, [liveDonor?.lat, liveDonor?.lng, mapReady])
 
   if (loading) return <p className="page center">Loading nearby donors...</p>
 
@@ -199,10 +307,19 @@ export default function NearbyDonors() {
               </div>
             </div>
             <div className="nearby-stat">
-              <span className="nearby-stat-icon">⏳</span>
+              <span className="nearby-stat-icon">{donors.length > 0 ? '🔒' : '⏳'}</span>
               <div className="nearby-stat-body">
-                <strong>{formatCountdown(countdown)}</strong>
-                <span>widening to {radiusKm + EXPAND_STEP_KM} km</span>
+                {donors.length > 0 ? (
+                  <>
+                    <strong>Locked</strong>
+                    <span>donors found within {radiusKm} km</span>
+                  </>
+                ) : (
+                  <>
+                    <strong>{formatCountdown(countdown)}</strong>
+                    <span>widening to {radiusKm + EXPAND_STEP_KM} km</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -211,7 +328,9 @@ export default function NearbyDonors() {
             <div className="card-head">
               <span className="card-head-icon">🗺️</span>
               <h3>Donor Locations</h3>
-              <span className="card-head-live">Search auto-widens over time</span>
+              <span className="card-head-live">
+                {donors.length > 0 ? `Radius locked at ${radiusKm} km` : 'Search auto-widens while empty'}
+              </span>
             </div>
             <div className="map-wrap">
               <div ref={mapEl} className="live-map" style={{ height: 400 }} />
@@ -221,6 +340,21 @@ export default function NearbyDonors() {
               <br />
               📍 Mapped to: <strong>{locationLine || '—'}</strong>
             </p>
+            {liveDonor && (
+              <p className="map-location-caption map-live-caption">
+                {liveDonor.live ? (
+                  <>
+                    🛞 <strong>{liveDonor.name || 'Matched donor'}</strong> is sharing their live
+                    location now
+                  </>
+                ) : (
+                  <>
+                    🛞 <strong>{liveDonor.name || 'Matched donor'}</strong> is matched to this
+                    request (location from profile)
+                  </>
+                )}
+              </p>
+            )}
           </div>
 
           {donors.length > 0 ? (

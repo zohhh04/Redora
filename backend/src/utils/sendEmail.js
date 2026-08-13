@@ -102,6 +102,63 @@ const resetPasswordTemplate = ({ name, resetLink, expiresIn = "1 hour" }) => wra
   { title: "Redora — Reset your password" },
 )
 
+const emergencyBloodTemplate = ({
+  patientName,
+  bloodGroup,
+  units,
+  urgency,
+  hospital,
+  areaText,
+  notes,
+  etaText,
+  clientUrl,
+}) => {
+  const isEmergency = urgency === "emergency"
+  return wrapper(
+    `
+    <div style="text-align:center;">
+      <div style="display:inline-block;background:#fde8ec;color:#c8102e;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:50px;margin-bottom:14px;">
+        ${isEmergency ? "🚨 Emergency" : "🩸 Blood needed"}
+      </div>
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#241a1d;font-size:22px;font-weight:800;margin:0 0 6px;">
+        ${bloodGroup} blood needed${hospital ? ` at ${hospital}` : ""}
+      </div>
+      <p style="font-family:Arial,Helvetica,sans-serif;color:#6b7280;font-size:14px;line-height:1.7;margin:0 0 22px;">
+        A patient urgently needs your help. Please open the Redora app and Accept if you can donate.
+      </p>
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fdf6f7;border:1px solid #f3d9de;border-radius:14px;margin:0 0 22px;">
+      <tr><td style="padding:18px 20px;">
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:13.5px;line-height:2;color:#241a1d;">
+          <div style="color:#6b7280;">Patient&nbsp;&nbsp;<strong style="color:#241a1d;">${patientName}</strong>;</div>
+          <div style="color:#6b7280;">Blood group&nbsp;&nbsp;<strong style="color:#c8102e;font-size:16px;">${bloodGroup}</strong> · ${units} unit${units > 1 ? "s" : ""};</div>
+          <div style="color:#6b7280;">Urgency&nbsp;&nbsp;<strong style="color:#c8102e;">${isEmergency ? "EMERGENCY" : "Normal"}</strong>;</div>
+          ${hospital ? `<div style="color:#6b7280;">Hospital&nbsp;&nbsp;<strong style="color:#241a1d;">${hospital}</strong>;</div>` : ""}
+          ${areaText ? `<div style="color:#6b7280;">Location&nbsp;&nbsp;<strong style="color:#241a1d;">${areaText}</strong>;</div>` : ""}
+          ${notes ? `<div style="color:#6b7280;">Patient notes&nbsp;&nbsp;<strong style="color:#241a1d;">${notes}</strong>;</div>` : ""}
+          <div style="color:#6b7280;">Estimated arrival for you&nbsp;&nbsp;<strong style="color:#241a1d;">about ${etaText}</strong>;</div>
+        </div>
+      </td></tr>
+    </table>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 0 8px;">
+      <tr>
+        <td align="center">
+          <a href="${clientUrl}/dashboard" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#c8102e 0%,#ff5c74 100%);color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;text-decoration:none;padding:16px 44px;border-radius:50px;box-shadow:0 10px 24px rgba(200,16,46,0.30);">
+            ${isEmergency ? "🚨 Accept now" : "View request & Accept"}
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="text-align:center;font-family:Arial,Helvetica,sans-serif;color:#9ca3af;font-size:12.5px;margin:14px 0 0;">
+      Every minute counts. If you cannot donate, please decline in the app so we can reach the next donor.
+    </p>
+    `,
+    { title: isEmergency ? "Redora — Emergency blood needed" : "Redora — Blood needed" }
+  )
+}
+
 // FREE dev mode: if EMAIL_USER/EMAIL_PASS are empty, the OTP is printed to
 // the backend console so you can test without any paid service.
 const sendEmail = async ({ to, subject, text, html }) => {
@@ -131,4 +188,4 @@ const sendEmail = async ({ to, subject, text, html }) => {
   return { delivered: true, devMode: false }
 }
 
-module.exports = { sendEmail, otpTemplate, resetPasswordTemplate }
+module.exports = { sendEmail, otpTemplate, resetPasswordTemplate, emergencyBloodTemplate }

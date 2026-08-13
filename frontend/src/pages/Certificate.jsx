@@ -87,7 +87,7 @@ export default function Certificate() {
           </div>
           <div className="cert-detail">
             <span className="cert-detail-label">Patient</span>
-            <span className="cert-detail-value">{request.patient?.name || 'Patient'}</span>
+            <span className="cert-detail-value">{request.patientName || request.patient?.name || 'Patient'}</span>
           </div>
           <div className="cert-detail">
             <span className="cert-detail-label">Issued On</span>

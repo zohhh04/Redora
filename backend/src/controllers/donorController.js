@@ -76,6 +76,7 @@ const getMyJourney = async (req, res) => {
         journey: r.journey,
         certificate: r.certificate,
         patient: r.patient,
+        patientName: r.patientName || r.patient?.name || "Patient",
         declined: r.declinedDonors.map(String).includes(req.user._id.toString()),
       })),
     })
@@ -101,7 +102,7 @@ const getMyCertificates = async (req, res) => {
         issuedAt: r.certificate.issuedAt,
         bloodGroup: r.bloodGroup,
         hospital: r.hospital,
-        patientName: r.patient?.name || "Patient",
+        patientName: r.patientName || r.patient?.name || "Patient",
       })),
     })
   } catch (error) {

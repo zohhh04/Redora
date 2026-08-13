@@ -16,6 +16,7 @@ function publicUser(user) {
     email: user.email,
     role: user.role,
     mobile: user.mobile,
+    alertEmail: user.alertEmail,
     bloodGroup: user.bloodGroup,
     lastDonationDate: user.lastDonationDate,
     availableForDonation: user.availableForDonation,
@@ -158,11 +159,12 @@ const getMe = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const user = req.user
-    const { bloodGroup, lastDonationDate, mobile, availableForDonation, availableForEmergencies, city, area, travelRadiusKm, location, newPassword } = req.body
+    const { bloodGroup, lastDonationDate, mobile, alertEmail, availableForDonation, availableForEmergencies, city, area, travelRadiusKm, location, newPassword } = req.body
 
     if (bloodGroup !== undefined) user.bloodGroup = bloodGroup
     if (lastDonationDate !== undefined) user.lastDonationDate = lastDonationDate || null
     if (mobile !== undefined) user.mobile = mobile
+    if (alertEmail !== undefined) user.alertEmail = (alertEmail || "").trim()
     if (availableForDonation !== undefined) user.availableForDonation = availableForDonation
     if (availableForEmergencies !== undefined) user.availableForEmergencies = availableForEmergencies
     if (city !== undefined) user.city = city

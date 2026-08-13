@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6 },
     role: { type: String, enum: ["donor", "patient"] },
     mobile: { type: String, default: "" },
+    alertEmail: { type: String, default: "" },
     bloodGroup: { type: String, default: "" },
     lastDonationDate: { type: Date, default: null },
     availableForDonation: { type: Boolean, default: false },

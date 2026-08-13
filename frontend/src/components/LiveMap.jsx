@@ -24,6 +24,7 @@ export default function LiveMap({
   showRoute = true,
   height = 320,
   showNavigate = true,
+  onRoute,
 }) {
   const mapRef = useRef(null)
   const mapEl = useRef(null)
@@ -87,12 +88,33 @@ export default function LiveMap({
     setCoords({ lat, lng: lon })
   }, [dest])
 
+  const originKey = origin ? `${origin.lat},${origin.lng}` : ''
+  const destKey = coords ? `${coords.lat},${coords.lng}` : ''
+
+  useEffect(() => {
+    if (!mapRef.current) return
+    const map = mapRef.current
+    const l = layersRef.current
+
+    if (origin) {
+      if (!l.origin) l.origin = L.marker([origin.lat, origin.lng], { icon: donorIcon }).addTo(map)
+      else l.origin.setLatLng([origin.lat, origin.lng])
+    } else if (l.origin) {
+      map.removeLayer(l.origin)
+      l.origin = null
+    }
+
+    if (!origin || !coords) {
+      if (origin) map.setView([origin.lat, origin.lng], 13)
+      else if (coords) map.setView([coords.lat, coords.lng], 13)
+      return
+    }
+  }, [originKey, destKey])
+
   useEffect(() => {
     if (!mapRef.current || !origin || !coords) return
     const map = mapRef.current
     const l = layersRef.current
-    if (!l.origin) l.origin = L.marker([origin.lat, origin.lng], { icon: donorIcon }).addTo(map)
-    else l.origin.setLatLng([origin.lat, origin.lng])
 
     const fitToPoints = () => {
       map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], [coords.lat, coords.lng]]), { padding: [40, 40] })
@@ -105,6 +127,7 @@ export default function LiveMap({
       }
       setEtaSeconds(null)
       setDistanceKm(null)
+      onRoute?.({ etaSeconds: null, distanceKm: null })
       fitToPoints()
       return
     }
@@ -121,6 +144,7 @@ export default function LiveMap({
         const route = data.routes[0]
         setEtaSeconds(Math.round(route.duration))
         setDistanceKm((route.distance / 1000).toFixed(1))
+        onRoute?.({ etaSeconds: Math.round(route.duration), distanceKm: (route.distance / 1000).toFixed(1) })
 
         const line = L.geoJSON(route.geometry, { color: '#2563eb', weight: 5, opacity: 0.85 })
         if (l.route) {
@@ -133,6 +157,7 @@ export default function LiveMap({
         if (!mapRef.current || routeFetchRef.current !== requestId) return
         setEtaSeconds(null)
         setDistanceKm(null)
+        onRoute?.({ etaSeconds: null, distanceKm: null })
         if (l.route) {
           map.removeLayer(l.route)
         }
@@ -145,7 +170,7 @@ export default function LiveMap({
         ).addTo(map)
         fitToPoints()
       })
-  }, [origin, coords, showRoute])
+  }, [originKey, destKey, showRoute, onRoute])
 
   useEffect(() => {
     return () => {

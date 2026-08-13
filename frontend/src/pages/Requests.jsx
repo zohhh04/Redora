@@ -128,7 +128,7 @@ export default function Requests() {
                       <span className="request-score">AI {r.matchScore}/100</span>
                     </div>
                     <div className="request-card-meta">
-                      <span>👤 {r.patient?.name || 'Patient'}</span>
+                      <span>👤 {r.patientName || r.patient?.name || 'Patient'}</span>
                       <span>🏥 {r.hospital || 'Hospital'}</span>
                       <span>📍 {r.city || '—'}{r.area ? `, ${r.area}` : ''}</span>
                       <span>🩸 {r.units} unit{r.units > 1 ? 's' : ''}</span>

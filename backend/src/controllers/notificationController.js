@@ -10,7 +10,7 @@ const getNotifications = async (req, res) => {
     const notifications = await Notification.find(filter)
       .sort({ createdAt: -1 })
       .limit(50)
-      .populate("request", "bloodGroup units hospital city area urgency status patient")
+      .populate("request", "bloodGroup units hospital city area urgency status patient notes")
       .populate("request.patient", "name")
 
     const unreadCount = await Notification.countDocuments({ user: req.user._id, read: false })

@@ -59,6 +59,12 @@ export default function NotificationPopup() {
   if (!alert) return null
 
   const r = alert.request
+  const locChip = [
+    r.city && r.city.toLowerCase() !== (r.hospital || '').toLowerCase() ? r.city : '',
+    r.area,
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   const respond = async (action) => {
     setBusy(true)
@@ -88,12 +94,10 @@ export default function NotificationPopup() {
         </div>
         <h3 className="notif-popup-title">{alert.title}</h3>
         <p className="notif-popup-body">{alert.body}</p>
+        {r.notes && <p className="notif-popup-notes">📝 {r.notes}</p>}
         <div className="notif-popup-meta">
           <span>🏥 {r.hospital || 'Hospital'}</span>
-          <span>
-            📍 {r.city || '—'}
-            {r.area ? `, ${r.area}` : ''}
-          </span>
+          {locChip && <span>📍 {locChip}</span>}
           <span>
             🩸 {r.units} unit{r.units > 1 ? 's' : ''}
           </span>
@@ -106,9 +110,6 @@ export default function NotificationPopup() {
           </button>
           <button className="btn ghost" disabled={busy} onClick={() => respond('decline')}>
             Decline
-          </button>
-          <button className="btn ghost" disabled={busy} onClick={() => respond('delay')}>
-            ⏰ Delay 30 min
           </button>
         </div>
       </div>

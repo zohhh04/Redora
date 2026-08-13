@@ -75,6 +75,7 @@ export default function DonorProfile() {
     bloodGroup: user?.bloodGroup || '',
     lastDonationDate: toInputDate(user?.lastDonationDate),
     mobile: user?.mobile || '',
+    alertEmail: user?.alertEmail || '',
     availableForDonation: user?.availableForDonation ?? false,
     availableForEmergencies: user?.availableForEmergencies ?? false,
     travelRadiusKm: user?.travelRadiusKm || 25,
@@ -228,6 +229,7 @@ export default function DonorProfile() {
         bloodGroup: form.bloodGroup,
         lastDonationDate: form.lastDonationDate || null,
         mobile: form.mobile,
+        alertEmail: form.alertEmail,
         availableForDonation: form.availableForDonation,
         availableForEmergencies: form.availableForEmergencies,
         city,
@@ -291,6 +293,19 @@ export default function DonorProfile() {
             value={form.mobile}
             onChange={handleChange}
           />
+        </label>
+        <label className="field">
+          <span>Alert Email (for blood requests)</span>
+          <input
+            type="email"
+            name="alertEmail"
+            placeholder={user.email}
+            value={form.alertEmail}
+            onChange={handleChange}
+          />
+          <small className="hint">
+            Urgent blood request emails go here. Leave empty to use your account email ({user.email}).
+          </small>
         </label>
 
         <div className="field">

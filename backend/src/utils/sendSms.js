@@ -1,8 +1,7 @@
-// Real SMS via MSG91 (free tier: https://control.msg91.com).
+// Real SMS via MSG91 (free trial credits: https://control.msg91.com).
 // Needs MSG91_AUTH_KEY and MSG91_SENDER_ID in backend/.env.
-// Uses the transactional route (route=4). Message text is sent as-is, so no
-// DLT template ID is required for testing; production India numbers may need
-// a registered DLT template.
+// For Indian (+91) numbers, TRAI requires DLT approval — also set
+// MSG91_DLT_TEMPLATE_ID and MSG91_PE_ID once the template is approved.
 
 function toE164(mobile) {
   const digits = (mobile || "").replace(/[^\d+]/g, "")
@@ -29,11 +28,18 @@ const sendSms = async ({ to, text }) => {
     return { delivered: false, reason: "not-configured" }
   }
 
+  // DLT IDs (TRAI requirement for Indian numbers). Optional — appended only
+  // when MSG91_DLT_TEMPLATE_ID / MSG91_PE_ID are set in backend/.env.
+  const templateId = process.env.MSG91_DLT_TEMPLATE_ID
+  const peId = process.env.MSG91_PE_ID
+  const dltParams =
+    templateId && peId ? `&DLT_TE_ID=${encodeURIComponent(templateId)}&PE_ID=${encodeURIComponent(peId)}` : ""
+
   const url = `https://api.msg91.com/api/sendhttp.php?authkey=${encodeURIComponent(
     authkey
   )}&mobiles=${encodeURIComponent(number.replace("+", ""))}&message=${encodeURIComponent(
     text
-  )}&sender=${encodeURIComponent(sender)}&route=4&country=0`
+  )}&sender=${encodeURIComponent(sender)}&route=4&country=0${dltParams}`
 
   try {
     const res = await fetch(url)

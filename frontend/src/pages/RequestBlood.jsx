@@ -12,6 +12,7 @@ const emptyForm = {
   location: '',
   urgency: 'emergency',
   notes: '',
+  patientName: '',
 }
 
 export default function RequestBlood() {
@@ -95,6 +96,16 @@ export default function RequestBlood() {
       </div>
 
       <form className="card request-form" onSubmit={createRequest}>
+        <label className="field">
+          <span>Patient Name</span>
+          <input
+            name="patientName"
+            placeholder="Whom is this blood needed for?"
+            value={form.patientName}
+            onChange={handleChange}
+          />
+        </label>
+
         <div className="form-grid-2">
           <label className="field">
             <span>Blood Group</span>

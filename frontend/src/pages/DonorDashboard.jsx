@@ -281,13 +281,6 @@ export default function DonorDashboard() {
                         >
                           Decline
                         </button>
-                        <button
-                          className="btn ghost btn-sm"
-                          disabled={busyId === r._id}
-                          onClick={() => handleNotification(r._id, 'delay')}
-                        >
-                          ⏰ Delay 30 min
-                        </button>
                       </div>
                     )}
                   </div>
@@ -328,7 +321,7 @@ export default function DonorDashboard() {
                   <span className="request-score">📍 Live</span>
                 </div>
                 <div className="request-card-meta">
-                  <span>👤 {r.patient?.name || 'Patient'}</span>
+                  <span>👤 {r.patientName || r.patient?.name || 'Patient'}</span>
                   <span>🏥 {r.hospital || 'Hospital'}</span>
                   <span>📍 {r.city || '—'}{r.area ? `, ${r.area}` : ''}</span>
                   <span>🩸 {r.units} unit{r.units > 1 ? 's' : ''}</span>
@@ -394,9 +387,9 @@ export default function DonorDashboard() {
                   <button
                     className="btn ghost btn-sm"
                     disabled={busyId === r._id}
-                    onClick={() => respond(r._id, 'delay')}
+                    onClick={() => respond(r._id, 'decline')}
                   >
-                    ⏰ Delay 30 min
+                    Decline
                   </button>
                 </div>
               </div>

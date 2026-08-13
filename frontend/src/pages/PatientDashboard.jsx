@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
@@ -26,7 +26,6 @@ export default function PatientDashboard() {
   const navigate = useNavigate()
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
-  const prevStatusRef = useRef({})
 
   const [search, setSearch] = useState({ bloodGroup: '', city: '', available: true })
   const [searchResults, setSearchResults] = useState([])
@@ -49,23 +48,11 @@ export default function PatientDashboard() {
     const timer = setInterval(() => {
       api
         .get('/requests/my')
-        .then(({ data }) => {
-          const list = data.requests || []
-          setRequests(list)
-          const next = {}
-          list.forEach((r) => {
-            const prev = prevStatusRef.current[r._id]
-            next[r._id] = r.status
-            if (prev === 'open' && r.status === 'matched') {
-              navigate(`/tracking/patient/${r._id}`)
-            }
-          })
-          prevStatusRef.current = next
-        })
+        .then(({ data }) => setRequests(data.requests || []))
         .catch(() => {})
     }, 4000)
     return () => clearInterval(timer)
-  }, [navigate])
+  }, [])
 
   const handleSearchChange = (e) =>
     setSearch({ ...search, [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })

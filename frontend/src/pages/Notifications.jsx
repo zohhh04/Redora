@@ -155,16 +155,6 @@ export default function Notifications() {
                         >
                           Decline
                         </button>
-                        <button
-                          className="btn ghost btn-sm"
-                          disabled={busyId === r._id}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            respond(r._id, 'delay')
-                          }}
-                        >
-                          ⏰ Delay 30 min
-                        </button>
                       </div>
                     )}
 

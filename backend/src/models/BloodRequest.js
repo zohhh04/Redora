@@ -15,6 +15,7 @@ const journeyEntrySchema = new mongoose.Schema(
 const requestSchema = new mongoose.Schema(
   {
     patient: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    patientName: { type: String, trim: true, default: "" },
     bloodGroup: { type: String, required: true },
     units: { type: Number, default: 1, min: 1 },
     hospital: { type: String, trim: true, default: "" },
@@ -34,6 +35,11 @@ const requestSchema = new mongoose.Schema(
       default: "open",
     },
     notes: { type: String, default: "" },
+    liveLocation: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      at: { type: Date, default: null },
+    },
     matchedDonor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     declinedDonors: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     delayedDonors: [

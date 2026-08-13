@@ -3,9 +3,32 @@ const User = require("../models/User")
 const Notification = require("../models/Notification")
 const { scoreDonorForRequest, scoreRequestForDonor, canDonateTo, isEligible, haversineKm } = require("../utils/matchUtils")
 const { stageLabel, TRANSITIONS, certificateCode } = require("../utils/journeyUtils")
-const { sendSms } = require("../utils/sendSms")
+const { sendEmail, emergencyBloodTemplate } = require("../utils/sendEmail")
 
 const DELAY_MS = 30 * 60 * 1000
+
+const OSRM = "https://router.project-osrm.org/route/v1/driving"
+const AVG_KMH = 30
+
+// Estimate how many minutes the donor needs to reach the hospital. Prefers a
+// real driving ETA from OSRM and falls back to a straight-line / speed estimate.
+async function estimateEtaMinutes(fromLat, fromLng, toLat, toLng, fallbackKm) {
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 4000)
+    const res = await fetch(
+      `${OSRM}/${fromLng},${fromLat};${toLng},${toLat}?overview=false`,
+      { signal: ctrl.signal }
+    )
+    clearTimeout(timer)
+    const data = await res.json()
+    const durationSec = data?.routes?.[0]?.duration
+    if (typeof durationSec === "number" && durationSec > 0) return durationSec / 60
+  } catch {
+    // Routing failed — fall back to the distance estimate below.
+  }
+  return (fallbackKm / AVG_KMH) * 60
+}
 
 const pushJourney = (request, stage, user, extra = {}) => {
   request.journey.push({
@@ -24,9 +47,10 @@ const markRequestNotifsRead = async (userId, requestId) => {
   )
 }
 
-// Notify the NEAREST eligible donor about a new open request. When that donor
-// declines or delays, this is called again to fall through to the next nearest,
-// so only one notification is live at a time (nearest-first dispatch).
+// Notify only an eligible donor inside the request's radius, choosing the one
+// with the smallest estimated time of arrival. When that donor declines or
+// delays, this is called again to fall through to the next fastest donor, so
+// only one notification is live at a time.
 async function dispatchNearestDonor(request) {
   try {
     const patient = await User.findById(request.patient).select("name")
@@ -36,7 +60,7 @@ async function dispatchNearestDonor(request) {
       role: "donor",
       verified: true,
       availableForDonation: true,
-    }).select("_id bloodGroup lastDonationDate travelRadiusKm location mobile name")
+    }).select("_id bloodGroup lastDonationDate travelRadiusKm location mobile name email alertEmail")
 
     const declined = request.declinedDonors.map(String)
     const delayed = new Set(
@@ -45,8 +69,7 @@ async function dispatchNearestDonor(request) {
         .map((d) => d.donor.toString())
     )
 
-    const candidates = donors
-      .filter((d) => {
+    const inRadius = donors.filter((d) => {
         const id = d._id.toString()
         if (declined.includes(id)) return false
         if (delayed.has(id)) return false
@@ -71,28 +94,77 @@ async function dispatchNearestDonor(request) {
           d.location.lng
         ),
       }))
-      .sort((a, b) => a.dist - b.dist)
 
-    const nearest = candidates[0]
-    if (!nearest) return
+    if (!inRadius.length) return
 
-    const emoji = request.urgency === "emergency" ? "🚨" : "🩸"
+    // Within the radius, message only the donor expected to arrive fastest.
+    const fastests = await Promise.all(
+      inRadius.map(async (c) => ({
+        ...c,
+        etaMinutes: await estimateEtaMinutes(
+          c.d.location.lat,
+          c.d.location.lng,
+          request.location.lat,
+          request.location.lng,
+          c.dist
+        ),
+      }))
+    )
+    fastests.sort((a, b) => a.etaMinutes - b.etaMinutes)
+    const fastest = fastests[0]
+    const donor = fastest.d
+    const etaMins = Math.round(fastest.etaMinutes)
+    const etaText = etaMins > 60 ? `${Math.floor(etaMins / 60)}h ${etaMins % 60}m` : `${etaMins} min`
+
+    const urgencyLabel = request.urgency === "emergency" ? "EMERGENCY" : "Normal"
+    const locationText = [request.city, request.area].filter(Boolean).join(", ")
+    const hospName = (request.hospital || "").toLowerCase()
+    const emailLocation =
+      locationText && locationText.toLowerCase() !== hospName
+        ? locationText
+        : (request.location && request.location.label) || ""
     await Notification.create({
-      user: nearest.d._id,
+      user: donor._id,
       request: request._id,
       type: "blood-request",
-      title: `${emoji} Blood needed${request.hospital ? ` at ${request.hospital}` : ""}`,
-      body: `${request.bloodGroup} · ${request.units} unit${request.units > 1 ? "s" : ""} · ${
-        request.urgency === "emergency" ? "Emergency" : "Normal"
-      } · Patient ${patient.name}${request.city ? ` · ${request.city}` : ""}`,
+      title:
+        request.urgency === "emergency"
+          ? `🚨 EMERGENCY — Blood needed at ${request.hospital || "a nearby hospital"}`
+          : `🩸 Blood needed at ${request.hospital || "a nearby hospital"}`,
+      body: [
+        `Patient ${patient.name} needs ${request.units} unit${request.units > 1 ? "s" : ""} of ${request.bloodGroup} blood (${urgencyLabel})`,
+        `Estimated arrival for you: about ${etaText}`,
+        "Please open the Redora app and Accept immediately to save a life.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
     })
 
-    const smsText = `Redora: ${request.bloodGroup} blood needed${
-      request.hospital ? ` at ${request.hospital}` : ""
-    } (${request.units} unit${request.units > 1 ? "s" : ""}, ${
-      request.urgency === "emergency" ? "EMERGENCY" : "normal"
-    }) for patient ${patient.name}${request.city ? `, ${request.city}` : ""}. Open the Redora app to Accept or Delay.`
-    if (nearest.d.mobile) sendSms({ to: nearest.d.mobile, text: smsText })
+    const unitsText = `${request.units} unit${request.units > 1 ? "s" : ""} of ${request.bloodGroup} blood (${urgencyLabel.toLowerCase()})`
+    const notifyEmail = donor.alertEmail || donor.email
+    const clientUrl = process.env.CLIENT_URL || "http://localhost:5174"
+    const mail = await sendEmail({
+      to: notifyEmail,
+      subject:
+        request.urgency === "emergency"
+          ? `🚨 URGENT: ${unitsText}${request.hospital ? ` at ${request.hospital}` : ""}`
+          : `🩸 Blood needed: ${unitsText}${request.hospital ? ` at ${request.hospital}` : ""}`,
+      text: `Redora: ${unitsText} needed${request.hospital ? ` at ${request.hospital}` : ""}; Patient: ${patient.name}; ${emailLocation ? `Location: ${emailLocation}; ` : ""}${request.notes ? `Patient notes: ${request.notes}; ` : ""}Estimated arrival for you: about ${etaText}. Open the Redora app and Accept now - every minute counts.`,
+      html: emergencyBloodTemplate({
+        patientName: patient.name,
+        bloodGroup: request.bloodGroup,
+        units: request.units,
+        urgency: request.urgency,
+        hospital: request.hospital,
+        areaText: emailLocation,
+        notes: request.notes,
+        etaText,
+        clientUrl,
+      }),
+    })
+    if (!mail.delivered && !mail.devMode) {
+      console.error("[EMAIL dispatch] alert not sent to", notifyEmail, mail)
+    }
   } catch (error) {
     console.error("dispatchNearestDonor failed:", error.message)
   }
@@ -101,11 +173,12 @@ async function dispatchNearestDonor(request) {
 // POST /api/requests - create a blood request (patient)
 const createRequest = async (req, res) => {
   try {
-    const { bloodGroup, units, hospital, phone, hospitalPhone, city, area, location, urgency, notes } = req.body
+    const { bloodGroup, units, hospital, phone, hospitalPhone, city, area, location, urgency, notes, patientName } = req.body
     if (!bloodGroup) return res.status(400).json({ message: "Please select a blood group" })
 
     const request = await BloodRequest.create({
       patient: req.user._id,
+      patientName: (patientName || "").trim() || req.user.name,
       bloodGroup: bloodGroup.toUpperCase(),
       units: units || 1,
       hospital: hospital || "",
@@ -370,6 +443,20 @@ const updateJourney = async (req, res) => {
 
     const current = request.status
 
+    // Save a live location ping from the matched donor at any pre-travel stage
+    // (matched/accepted) so the patient can already see the donor's pin, without
+    // forcing the stage forward.
+    const saveLive = () => {
+      const m = typeof location === "string" ? location.match(/lat:([\d.-]+),lng:([\d.-]+)/) : null
+      if (m) {
+        request.liveLocation = {
+          lat: parseFloat(m[1]),
+          lng: parseFloat(m[2]),
+          at: new Date(),
+        }
+      }
+    }
+
     // Live location/note update while the donor is traveling (no stage change).
     if (stage === current && current === "traveling") {
       const last = request.journey[request.journey.length - 1]
@@ -377,6 +464,14 @@ const updateJourney = async (req, res) => {
         if (location !== undefined) last.location = location
         if (note !== undefined) last.note = note
       }
+      saveLive()
+      await request.save()
+      return res.json({ message: "Location updated", request })
+    }
+
+    // Donor sharing a live position before the trip formally starts.
+    if (isDonor && stage === "traveling" && ["matched", "accepted"].includes(current) && location) {
+      saveLive()
       await request.save()
       return res.json({ message: "Location updated", request })
     }

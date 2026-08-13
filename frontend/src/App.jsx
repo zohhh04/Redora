@@ -1,6 +1,8 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import api from './api/axios'
 import Navbar from './components/Navbar'
 import NotificationPopup from './components/NotificationPopup'
 import Home from './pages/Home'
@@ -114,12 +116,49 @@ function PatientTrackingRoute() {
   return <PatientTracking />
 }
 
+// Anywhere a patient is logged in, this polls their requests and routes them to
+// the patient tracking page the moment a donor accepts a request (status matched).
+function PatientJourneyWatcher() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const navigatedRef = useRef(new Set())
+
+  useEffect(() => {
+    if (!user || user.role !== 'patient') return
+    let active = true
+    const poll = () =>
+      api
+        .get('/requests/my')
+        .then(({ data }) => {
+          if (!active) return
+          ;(data.requests || []).forEach((r) => {
+            if (r.status === 'matched' && !navigatedRef.current.has(r._id)) {
+              navigatedRef.current.add(r._id)
+              navigate(`/tracking/patient/${r._id}`)
+            } else if (r.status !== 'matched') {
+              navigatedRef.current.delete(r._id)
+            }
+          })
+        })
+        .catch(() => {})
+    poll()
+    const timer = setInterval(poll, 4000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [user, navigate])
+
+  return null
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <Navbar />
         <NotificationPopup />
+        <PatientJourneyWatcher />
         <div className="app">
           <Routes>
             <Route path="/" element={<Home />} />

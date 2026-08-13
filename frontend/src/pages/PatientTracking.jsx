@@ -8,8 +8,8 @@ import MessagePanel from '../components/MessagePanel'
 
 const LINEAR_STAGES = [
   { stage: 'matched', icon: '🤝', label: 'Donor Matched' },
-  { stage: 'accepted', icon: '✅', label: 'Donation Accepted' },
-  { stage: 'traveling', icon: '🚗', label: 'Donor On The Way' },
+  { stage: 'accepted', icon: '✅', label: 'Donation Approved' },
+  { stage: 'traveling', icon: '🚗', label: 'Donor En Route' },
   { stage: 'arrived', icon: '🏥', label: 'Donor Arrived' },
   { stage: 'donating', icon: '🩸', label: 'Donation In Progress' },
   { stage: 'completed', icon: '🎉', label: 'Donation Completed' },
@@ -47,6 +47,13 @@ function parseGps(loc) {
   return m ? { lat: parseFloat(m[1]), lng: parseFloat(m[2]) } : null
 }
 
+function formatEta(sec) {
+  if (sec == null) return ''
+  const m = Math.round(sec / 60)
+  const h = Math.floor(m / 60)
+  return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
+}
+
 export default function PatientTracking() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -56,6 +63,9 @@ export default function PatientTracking() {
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
   const [lastSync, setLastSync] = useState(null)
+  const [eta, setEta] = useState(null)
+
+  const onRoute = useCallback((info) => setEta(info), [])
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +125,7 @@ export default function PatientTracking() {
   const status = request.status
   const completed = status === 'completed'
   const cancelled = status === 'cancelled'
+  const donor = request.matchedDonor || null
 
   const linearDone = new Set(
     request.journey.filter((e) => LINEAR_STAGES.some((s) => s.stage === e.stage)).map((e) => e.stage),
@@ -132,8 +143,12 @@ export default function PatientTracking() {
   const destination = [request.hospital, request.city, request.area].filter(Boolean).join(', ')
 
   const travelingEntry = [...request.journey].reverse().find((e) => e.stage === 'traveling')
-  const donorPosition = travelingEntry ? parseGps(travelingEntry.location) : null
-  const donorLocation = request.matchedDonor?.location
+  const serverLive =
+    request.liveLocation && request.liveLocation.lat != null
+      ? { lat: request.liveLocation.lat, lng: request.liveLocation.lng }
+      : null
+  const donorPosition = serverLive || (travelingEntry ? parseGps(travelingEntry.location) : null)
+  const donorLocation = donor?.location
   const homePosition =
     donorLocation && donorLocation.lat != null && donorLocation.lng != null
       ? { lat: donorLocation.lat, lng: donorLocation.lng }
@@ -141,7 +156,22 @@ export default function PatientTracking() {
   const mapOrigin = donorPosition || homePosition
   const usingHome = !donorPosition && homePosition
 
+  const donorLive = !!donorPosition
   const showMap = status === 'matched' || status === 'accepted' || status === 'traveling' || status === 'arrived' || status === 'donating'
+
+  let etaMain = 'Waiting for route…'
+  let etaSub = donor ? `${donor.name} hasn't started the trip yet` : 'Waiting for a donor to accept…'
+  if (eta?.etaSeconds != null) {
+    etaMain = `~${formatEta(eta.etaSeconds)}`
+    etaSub = donorLive
+      ? `Donor arrives in about ${formatEta(eta.etaSeconds)} · ${eta.distanceKm} km away`
+      : usingHome
+        ? `Estimated drive from ${donor.name}'s home · ${eta.distanceKm} km away`
+        : `About ${formatEta(eta.etaSeconds)} away · ${eta.distanceKm} km`
+  }
+  if (status === 'arrived') { etaMain = 'Arrived 🏥'; etaSub = `${donor?.name || 'The donor'} has reached ${request.hospital || 'the hospital'} and is checking in` }
+  if (status === 'donating') { etaMain = 'Donating 🩸'; etaSub = 'The donation is in progress with the hospital team' }
+  if (completed) { etaMain = 'Completed 🎉'; etaSub = 'The donation was completed successfully' }
 
   const confirmDonor = async () => {
     setMsg('')
@@ -168,11 +198,13 @@ export default function PatientTracking() {
   }
 
   return (
-    <div className="page page-wide tracking-page">
+    <div className="page page-wide tracking-page patient-tracking">
       <header className="tracking-header">
         <div className="tracking-title">
           <h2>Live Donor Tracking</h2>
-          <p className="hint">Follow your donor in real time until they arrive</p>
+          <p className="hint">
+            {donor ? `Follow ${donor.name} until they reach the hospital` : 'Waiting for a donor to accept this request'}
+          </p>
         </div>
         {!cancelled && (
           <span className={`live-badge ${completed ? 'live-green' : ''}`}>
@@ -202,12 +234,55 @@ export default function PatientTracking() {
       {msg && <p className="success">{msg}</p>}
       {error && <p className="error">{error}</p>}
 
+      <section className="arrival-panel">
+        <div className="arrival-panel-top">
+          <div className="arrival-dest">
+            <span className="arrival-ico arrival-hosp">🏥</span>
+            <div>
+              <span className="arrival-name">{request.hospital || 'Hospital'}</span>
+              <span className="arrival-sub">
+                {request.city}{request.area ? `, ${request.area}` : ''} · Collect at hospital reception
+              </span>
+            </div>
+          </div>
+          {donor && (
+            <div className="arrival-donor">
+              <span className="arrival-ico">🩸</span>
+              <div>
+                <span className="arrival-name">{donor.name} · {donor.bloodGroup}</span>
+                <span className="arrival-sub">
+                  {donorLive ? '🛞 Live on the road' : usingHome ? '📍 Starting from home' : 'Location pending'}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {showMap ? (
+          <>
+            <LiveMap origin={mapOrigin} destination={destination} height={300} showNavigate={false} onRoute={onRoute} />
+            <div className={`eta-banner ${completed ? 'eta-done' : ''}`}>
+              <span className="eta-banner-ico">{donorLive ? '🛞' : completed ? '🎉' : '⏱'}</span>
+              <div className="eta-banner-info">
+                <span className="eta-main">{etaMain}</span>
+                <span className="eta-secondary">{etaSub}</span>
+              </div>
+              <span className="card-head-live">Live · synced {lastSync ? formatTime(lastSync) : '…'}</span>
+            </div>
+          </>
+        ) : (
+          <div className="empty-map-box">
+            <span className="droplet-icon">🩸</span>
+            <p>Waiting for a donor to accept this request. As soon as they do, their route and arrival time will show here.</p>
+          </div>
+        )}
+      </section>
+
       <div className="tracking-grid">
         <section className="tracking-card">
           <div className="card-head">
             <span className="card-head-icon">📋</span>
-            <h3>Journey Timeline</h3>
-            <span className="card-head-live">Live · synced {lastSync ? formatTime(lastSync) : '…'}</span>
+            <h3>Donation Timeline</h3>
           </div>
 
           {status === 'open' ? (
@@ -236,7 +311,7 @@ export default function PatientTracking() {
                             {active && <span className="timeline-now">· now</span>}
                           </span>
                           {stage_entry?.location && (
-                            <span className="timeline-loc">📍 {stage_entry.location.replace(/^lat:[\d.,-]+lng:[\d.,-]+/, 'Shared GPS location')}</span>
+                            <span className="timeline-loc">📍 {stage_entry.location.replace(/^lat:[\d.,-]+lng:[\d.,-]+/, 'Location shared')}</span>
                           )}
                           {stage_entry?.note && <span className="timeline-note">{stage_entry.note}</span>}
                         </div>
@@ -269,24 +344,6 @@ export default function PatientTracking() {
         </section>
 
         <section className="tracking-card tracking-side">
-          {showMap && (
-            <div className="card-block">
-              <div className="card-head">
-                <span className="card-head-icon">🗺️</span>
-                <h3>Donor Live Location & Route</h3>
-                {donorPosition && <span className="card-head-live">Donor 🛞 live on map</span>}
-              </div>
-              <LiveMap origin={mapOrigin} destination={destination} height={280} showNavigate={false} />
-              {!donorPosition && status !== 'completed' && (
-                <p className="map-status">
-                  {usingHome
-                    ? '📍 Donor home location — live tracking starts when they depart.'
-                    : 'Waiting for the donor to share their live location…'}
-                </p>
-              )}
-            </div>
-          )}
-
           <div className="card-block">
             <div className="card-head">
               <span className="card-head-icon">🩸</span>
@@ -297,18 +354,18 @@ export default function PatientTracking() {
                 <div className="person-row-top">
                   <span className="person-icon">🩸</span>
                   <div className="person-details">
-                    <span className="person-name">{request.matchedDonor?.name || '—'}</span>
-                    <span className="person-contact">🩸 {request.matchedDonor?.bloodGroup || '—'}</span>
-                    <span className="person-contact">📍 {request.matchedDonor?.city || '—'}{request.matchedDonor?.area ? `, ${request.matchedDonor.area}` : ''}</span>
-                    <span className="person-contact">📱 {request.matchedDonor?.mobile || '—'}</span>
+                    <span className="person-name">{donor?.name || 'No donor yet'}</span>
+                    <span className="person-contact">🩸 {donor?.bloodGroup || '—'}</span>
+                    <span className="person-contact">📍 {donor?.city || '—'}{donor?.area ? `, ${donor.area}` : ''}</span>
+                    <span className="person-contact">📱 {donor?.mobile || '—'}</span>
                   </div>
                 </div>
-                {request.matchedDonor && (
+                {donor && (
                   <CallPanel
                     requestId={id}
                     myId={user.id}
-                    otherId={request.matchedDonor?._id}
-                    otherName={request.matchedDonor?.name || 'the donor'}
+                    otherId={donor._id}
+                    otherName={donor.name || 'the donor'}
                   />
                 )}
               </div>
@@ -320,13 +377,13 @@ export default function PatientTracking() {
               <span className="card-head-icon">💬</span>
               <h3>Message Donor</h3>
             </div>
-            <MessagePanel requestId={id} otherName={request.matchedDonor?.name || 'the donor'} />
+            <MessagePanel requestId={id} otherName={donor?.name || 'the donor'} />
           </div>
 
           <div className="card-block">
             <div className="card-head">
               <span className="card-head-icon">⚡</span>
-              <h3>Actions</h3>
+              <h3>Hospital Actions</h3>
             </div>
             {status !== 'open' && !cancelled && (
               <div className="journey-actions">
@@ -362,7 +419,7 @@ export default function PatientTracking() {
 
             {completed && (
               <div className="card-success">
-                <p className="success">🎉 Donation completed! A certificate has been issued to {request.matchedDonor?.name || 'the donor'}.</p>
+                <p className="success">🎉 Donation completed! A certificate has been issued to {donor?.name || 'the donor'}.</p>
                 <button className="btn primary btn-block" onClick={() => navigate('/dashboard')}>
                   ↩️ Back to Dashboard
                 </button>
