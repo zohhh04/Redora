@@ -47,6 +47,17 @@ const markRequestNotifsRead = async (userId, requestId) => {
   )
 }
 
+// Send a notification to the patient who owns the request.
+const notifyPatient = async (request, title, body) => {
+  await Notification.create({
+    user: request.patient,
+    request: request._id,
+    type: "system",
+    title,
+    body,
+  })
+}
+
 // Notify only an eligible donor inside the request's radius, choosing the one
 // with the smallest estimated time of arrival. When that donor declines or
 // delays, this is called again to fall through to the next fastest donor, so
@@ -372,6 +383,11 @@ const respondToRequest = async (req, res) => {
     })
     await request.save()
     await markRequestNotifsRead(req.user._id, request._id)
+    await notifyPatient(
+      request,
+      "🎉 A donor accepted your request",
+      `${req.user.name} (${req.user.bloodGroup || "blood group not set"}) is coming to help. Confirm them to begin the journey.`
+    )
     res.json({ message: "Request accepted. Waiting for the patient to confirm you.", request })
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -432,7 +448,7 @@ const manageDonor = async (req, res) => {
 // PATCH /api/requests/:id/journey - advance the journey stage (patient or matched donor)
 const updateJourney = async (req, res) => {
   try {
-    const { stage, note, location } = req.body
+    const { stage, note, location, travelMode, route, start } = req.body
     const request = await BloodRequest.findById(req.params.id)
     if (!request) return res.status(404).json({ message: "Request not found" })
 
@@ -442,6 +458,36 @@ const updateJourney = async (req, res) => {
     if (!isPatient && !isDonor) return res.status(403).json({ message: "Not authorized" })
 
     const current = request.status
+
+    // The donor shares the optimized route their map computed so the patient
+    // sees the exact same path. No stage change involved.
+    const saveRoute = () => {
+      if (!isDonor || !route || !route.geometry) return
+      request.route = {
+        geometry: route.geometry,
+        distanceKm:
+          typeof route.distanceKm === "number"
+            ? route.distanceKm
+            : request.route?.distanceKm ?? null,
+        eta: route.etas || route.eta || request.route?.eta || null,
+        at: new Date(),
+      }
+    }
+
+    // The matched donor picks how they are traveling (car/bike/walk); the
+    // patient reads this to show the same ETA. No stage change involved.
+    const travelModes = ["car", "bike", "walk"]
+    if (travelMode && travelModes.includes(travelMode)) {
+      if (!isDonor) {
+        return res.status(403).json({ message: "Only the matched donor can set their travel mode" })
+      }
+      request.travelMode = travelMode
+      await request.save()
+      return res.json({ message: "Travel mode updated", request })
+    }
+    if (travelMode) {
+      return res.status(400).json({ message: "Travel mode must be car, bike or walk" })
+    }
 
     // Save a live location ping from the matched donor at any pre-travel stage
     // (matched/accepted) so the patient can already see the donor's pin, without
@@ -465,13 +511,15 @@ const updateJourney = async (req, res) => {
         if (note !== undefined) last.note = note
       }
       saveLive()
+      saveRoute()
       await request.save()
       return res.json({ message: "Location updated", request })
     }
 
     // Donor sharing a live position before the trip formally starts.
-    if (isDonor && stage === "traveling" && ["matched", "accepted"].includes(current) && location) {
+    if (isDonor && stage === "traveling" && ["matched", "accepted"].includes(current) && location && !start) {
       saveLive()
+      saveRoute()
       await request.save()
       return res.json({ message: "Location updated", request })
     }
@@ -505,7 +553,23 @@ const updateJourney = async (req, res) => {
     }
 
     request.status = stage
+    if (location !== undefined) saveLive()
+    saveRoute()
     pushJourney(request, stage, req.user, { note: note || "", location: location || "" })
+
+    if (stage === "traveling") {
+      await notifyPatient(
+        request,
+        "🚗 Your donor is on the way",
+        `Your donor is heading to ${request.hospital || "the hospital"}. Track them live on the map.`
+      )
+    } else if (stage === "arrived") {
+      await notifyPatient(
+        request,
+        "🏥 Your donor has arrived",
+        `Your donor has reached ${request.hospital || "the hospital"} and is checking in.`
+      )
+    }
 
     if (stage === "completed") {
       request.completedAt = new Date()
@@ -516,6 +580,11 @@ const updateJourney = async (req, res) => {
         donor.lastDonationDate = new Date()
         await donor.save()
       }
+      await notifyPatient(
+        request,
+        "🎉 Donation completed",
+        `The donation at ${request.hospital || "the hospital"} is complete. A certificate has been issued to your donor.`
+      )
     }
 
     await request.save()

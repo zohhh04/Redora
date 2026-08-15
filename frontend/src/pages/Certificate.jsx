@@ -57,33 +57,41 @@ export default function Certificate() {
       </div>
 
       <div className="certificate-sheet">
+        <span className="cert-corner tl" />
+        <span className="cert-corner tr" />
+        <span className="cert-corner bl" />
+        <span className="cert-corner br" />
+
         <div className="cert-header">
-          <div className="cert-logo">🩸 Redora</div>
-          <div className="cert-title">Certificate of Appreciation</div>
-          <div className="cert-sub">Where Technology Meets Life</div>
+          <div className="cert-org">
+            <span className="cert-org-ico">🩸</span>
+            Redora
+          </div>
+          <span className="cert-kicker">Official Recognition</span>
+          <h1 className="cert-title">Certificate of Appreciation</h1>
+          <span className="cert-rule" />
         </div>
 
         <div className="cert-seal">🩸</div>
 
+        <p className="cert-body">This certificate is proudly presented to</p>
+        <h2 className="cert-donor">{donorName}</h2>
         <p className="cert-body">
-          This certificate is proudly presented to
-        </p>
-        <h1 className="cert-donor">{donorName}</h1>
-        <p className="cert-body">
-          for donating <strong>{request.bloodGroup}</strong> blood
-          {request.units > 1 ? ` (${request.units} units)` : ''} to a patient at
-          <strong> {request.hospital || 'Hospital'}</strong>, thereby helping save a life through
-          the Redora blood donation platform.
+          in recognition of your generous blood donation of
+          <strong> {request.bloodGroup}</strong>
+          {request.units > 1 ? ` (${request.units} units)` : ''} at
+          <strong> {request.hospital || 'Hospital'}</strong>, helping save a life through the Redora
+          blood donation platform.
         </p>
 
         <div className="cert-details">
           <div className="cert-detail">
-            <span className="cert-detail-label">Certificate No.</span>
-            <span className="cert-detail-value">{certificate.code}</span>
-          </div>
-          <div className="cert-detail">
             <span className="cert-detail-label">Blood Group</span>
             <span className="cert-detail-value">{request.bloodGroup}</span>
+          </div>
+          <div className="cert-detail">
+            <span className="cert-detail-label">Units Donated</span>
+            <span className="cert-detail-value">{request.units || 1}</span>
           </div>
           <div className="cert-detail">
             <span className="cert-detail-label">Patient</span>
@@ -96,8 +104,14 @@ export default function Certificate() {
         </div>
 
         <div className="cert-footer">
-          <span className="cert-sign">The Redora Team</span>
-          <span className="cert-stamp">Thank you for saving a life 💙</span>
+          <div className="cert-sign-block">
+            <span className="cert-sign">The Redora Team</span>
+            <span className="cert-sign-label">Authorized Signature</span>
+          </div>
+          <div className="cert-footer-right">
+            <span className="cert-stamp">♥ Thank you for saving a life</span>
+            <span className="cert-verify">Verify · {certificate.code}</span>
+          </div>
         </div>
       </div>
     </div>

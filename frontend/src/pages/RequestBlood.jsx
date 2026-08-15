@@ -87,8 +87,9 @@ export default function RequestBlood() {
   }
 
   return (
-    <div className="page page-wide">
-      <div className="dashboard-head">
+    <div className="page page-wide request-blood-page">
+      <div className="request-hero">
+        <span className="request-hero-badge">🩸</span>
         <div>
           <h2>New Blood Request</h2>
           <p className="hint">Tell donors what you need — it only takes a minute.</p>
@@ -96,87 +97,101 @@ export default function RequestBlood() {
       </div>
 
       <form className="card request-form" onSubmit={createRequest}>
-        <label className="field">
-          <span>Patient Name</span>
-          <input
-            name="patientName"
-            placeholder="Whom is this blood needed for?"
-            value={form.patientName}
-            onChange={handleChange}
-          />
-        </label>
+        <div className="req-section">
+          <div className="req-section-head">
+            <span className="req-section-ico">👤</span>
+            <h3>Who Needs Blood</h3>
+          </div>
+          <div className="form-grid-2">
+            <label className="field">
+              <span>Patient Name</span>
+              <input
+                name="patientName"
+                placeholder="Whom is this blood needed for?"
+                value={form.patientName}
+                onChange={handleChange}
+              />
+            </label>
+            <label className="field">
+              <span>Phone Number</span>
+              <input
+                name="phone"
+                type="tel"
+                placeholder="Contact number for the donor to call"
+                value={form.phone}
+                onChange={handleChange}
+              />
+            </label>
+          </div>
+          <div className="form-grid-2">
+            <label className="field">
+              <span>Blood Group</span>
+              <select name="bloodGroup" value={form.bloodGroup} onChange={handleChange} className="select">
+                <option value="">Select</option>
+                {bloodGroups.map((bg) => (
+                  <option key={bg} value={bg}>
+                    {bg}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Units</span>
+              <input type="number" min="1" name="units" value={form.units} onChange={handleChange} />
+            </label>
+          </div>
+        </div>
 
-        <div className="form-grid-2">
+        <div className="req-section">
+          <div className="req-section-head">
+            <span className="req-section-ico">🏥</span>
+            <h3>Hospital &amp; Location</h3>
+          </div>
           <label className="field">
-            <span>Blood Group</span>
-            <select name="bloodGroup" value={form.bloodGroup} onChange={handleChange} className="select">
-              <option value="">Select</option>
-              {bloodGroups.map((bg) => (
-                <option key={bg} value={bg}>
-                  {bg}
-                </option>
-              ))}
+            <span>Hospital</span>
+            <input name="hospital" placeholder="Hospital name" value={form.hospital} onChange={handleChange} />
+          </label>
+          <label className="field">
+            <span>Location</span>
+            <input name="location" placeholder="e.g. Hyderabad, Kukatpally" value={form.location} onChange={handleChange} />
+          </label>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={verifyHospital}
+            disabled={verify.status === 'checking'}
+          >
+            {verify.status === 'checking' ? 'Verifying…' : 'Verify Hospital & Location'}
+          </button>
+          {verify.status === 'verified' && <p className="success">{verify.message}</p>}
+          {verify.status === 'mismatch' && <p className="error">{verify.message}</p>}
+          {verify.status === 'notfound' && <p className="error">{verify.message}</p>}
+          {verify.status === 'error' && <p className="error">{verify.message}</p>}
+        </div>
+
+        <div className="req-section">
+          <div className="req-section-head">
+            <span className="req-section-ico">⚡</span>
+            <h3>Donation Details</h3>
+          </div>
+          <label className="field">
+            <span>Urgency</span>
+            <select name="urgency" value={form.urgency} onChange={handleChange} className="select">
+              <option value="emergency">🚨 Emergency</option>
+              <option value="normal">🕐 Normal</option>
             </select>
           </label>
           <label className="field">
-            <span>Units</span>
-            <input type="number" min="1" name="units" value={form.units} onChange={handleChange} />
+            <span>Notes</span>
+            <textarea
+              name="notes"
+              rows="3"
+              placeholder="Any details for donors"
+              value={form.notes}
+              onChange={handleChange}
+            />
           </label>
         </div>
-
-        <label className="field">
-          <span>Hospital</span>
-          <input name="hospital" placeholder="Hospital name" value={form.hospital} onChange={handleChange} />
-        </label>
-
-        <label className="field">
-          <span>Phone Number</span>
-          <input
-            name="phone"
-            type="tel"
-            placeholder="Hospital / contact number for the donor to call"
-            value={form.phone}
-            onChange={handleChange}
-          />
-        </label>
-
-        <label className="field">
-          <span>Location</span>
-          <input name="location" placeholder="e.g. Hyderabad, Kukatpally" value={form.location} onChange={handleChange} />
-        </label>
-
-        <button
-          type="button"
-          className="btn ghost"
-          onClick={verifyHospital}
-          disabled={verify.status === 'checking'}
-        >
-          {verify.status === 'checking' ? 'Verifying…' : 'Verify Hospital & Location'}
-        </button>
-
-        {verify.status === 'verified' && <p className="success">{verify.message}</p>}
-        {verify.status === 'mismatch' && <p className="error">{verify.message}</p>}
-        {verify.status === 'notfound' && <p className="error">{verify.message}</p>}
-        {verify.status === 'error' && <p className="error">{verify.message}</p>}
-
-        <label className="field">
-          <span>Urgency</span>
-          <select name="urgency" value={form.urgency} onChange={handleChange} className="select">
-            <option value="emergency">🚨 Emergency</option>
-            <option value="normal">🕐 Normal</option>
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Notes</span>
-          <textarea
-            name="notes"
-            rows="3"
-            placeholder="Any details for donors"
-            value={form.notes}
-            onChange={handleChange}
-          />
-        </label>
 
         {error && <p className="error">{error}</p>}
 

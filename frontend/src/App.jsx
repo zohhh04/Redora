@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Routes, Route, Navigate, Link, useParams, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import api from './api/axios'
@@ -20,17 +20,70 @@ import RequestBlood from './pages/RequestBlood'
 import NearbyDonors from './pages/NearbyDonors'
 import Logout from './pages/Logout'
 import PatientDashboard from './pages/PatientDashboard'
+import PatientRequests from './pages/PatientRequests'
 import Journey from './pages/Journey'
 import DonorTracking from './pages/DonorTracking'
 import PatientTracking from './pages/PatientTracking'
 import Certificate from './pages/Certificate'
 import Notifications from './pages/Notifications'
 
+// If we have a token but the auth check failed, don't blindly bounce to login.
+// Only an actual invalid/absent token redirects to /login. Transient/network
+// failures show a retry screen instead so the user keeps their session.
 function Protected({ children }) {
-  const { user, loading } = useAuth()
-  if (loading) return <p className="page center">Loading...</p>
-  if (!user) return <Navigate to="/login" replace />
-  return children
+  const { user, loading, restoreSession } = useAuth()
+  const [state, setState] = useState('loading') // loading | ready | noauth | network
+  const triedRef = useRef(false)
+  const confirmedRef = useRef(false)
+
+  const tryRestore = () => {
+    setState('loading')
+    triedRef.current = true
+    restoreSession().then((res) => {
+      // A stale/late failed check must never clobber an already-confirmed session.
+      if (confirmedRef.current) return
+      if (res.ok) {
+        confirmedRef.current = true
+        setState('ready')
+      } else if (res.code === 'invalid' || res.code === 'none') setState('noauth')
+      else setState('network')
+    })
+  }
+
+  useEffect(() => {
+    if (user) {
+      confirmedRef.current = true
+      setState('ready')
+      return
+    }
+    if (loading) return
+    if (!triedRef.current) tryRestore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, loading])
+
+  if (state === 'ready') return children
+  if (state === 'noauth') return <Navigate to="/login" replace />
+
+  if (state === 'network') {
+    return (
+      <div className="page center">
+        <div className="logout-card">
+          <span className="logout-icon">📡</span>
+          <h2>Connection Issue</h2>
+          <p>
+            We couldn't reach the server to restore your session. Your login is safe — check your
+            connection and try again.
+          </p>
+          <div className="dashboard-actions">
+            <button className="btn primary" onClick={tryRestore}>Retry</button>
+            <Link to="/" className="btn ghost">Go to Home</Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return <p className="page center">Loading…</p>
 }
 
 function Dashboard() {
@@ -91,8 +144,15 @@ function CertificateRoute() {
 function NotificationsRoute() {
   const { user } = useAuth()
   if (!user) return null
-  if (user.role !== 'donor') return <Navigate to="/dashboard" replace />
+  if (user.role !== 'donor' && user.role !== 'patient') return <Navigate to="/dashboard" replace />
   return <Notifications />
+}
+
+function PatientRequestsRoute() {
+  const { user } = useAuth()
+  if (!user) return null
+  if (user.role !== 'patient') return <Navigate to="/dashboard" replace />
+  return <PatientRequests />
 }
 
 function TrackingRedirect() {
@@ -189,6 +249,14 @@ export default function App() {
               element={
                 <Protected>
                   <RequestBloodRoute />
+                </Protected>
+              }
+            />
+            <Route
+              path="/my-requests"
+              element={
+                <Protected>
+                  <PatientRequestsRoute />
                 </Protected>
               }
             />

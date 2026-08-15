@@ -20,7 +20,7 @@ export default function Navbar() {
   }, [])
 
   useEffect(() => {
-    if (user?.role !== 'donor') return
+    if (user?.role !== 'donor' && user?.role !== 'patient') return
     let active = true
     const load = () =>
       api
@@ -56,7 +56,7 @@ export default function Navbar() {
 
       <div className="nav-actions">
         <ThemeToggle />
-        {user && user.role === 'donor' && (
+        {user && (user.role === 'donor' || user.role === 'patient') && (
           <button
             type="button"
             className="notif-bell"
@@ -94,6 +94,9 @@ export default function Navbar() {
               </Link>
               <Link to="/request-blood" className="btn nav-btn">
                 Request Blood
+              </Link>
+              <Link to="/my-requests" className="btn nav-btn">
+                My Requests
               </Link>
               <Link to="/logout" className="btn nav-btn">
                 Logout

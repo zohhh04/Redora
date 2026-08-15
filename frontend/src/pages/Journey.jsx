@@ -4,15 +4,26 @@ import api from '../api/axios'
 
 const ACTIVE_STATUSES = ['matched', 'accepted', 'traveling', 'arrived', 'donating']
 const COMPLETED_STATUSES = ['completed']
+const STAGE_ORDER = ['matched', 'accepted', 'traveling', 'arrived', 'donating', 'completed']
 
 const STATUS_LABEL = {
-  matched: 'Matched · awaiting patient',
-  accepted: 'Accepted · ready to start',
+  matched: 'Matched',
+  accepted: 'Ready to start',
   traveling: 'On the way',
-  arrived: 'Arrived at hospital',
+  arrived: 'Arrived',
   donating: 'Donating',
   completed: 'Completed',
   cancelled: 'Cancelled',
+}
+
+const STATUS_ICON = {
+  matched: '🤝',
+  accepted: '✅',
+  traveling: '🚗',
+  arrived: '🏥',
+  donating: '🩸',
+  completed: '🎉',
+  cancelled: '🚫',
 }
 
 function formatDate(date) {
@@ -30,85 +41,192 @@ function formatTimeAgo(date) {
   return formatDate(date)
 }
 
-function RequestCard({ r, trackLink }) {
+function JourneyItem({ r, trackLink, last }) {
   const active = ACTIVE_STATUSES.includes(r.status)
   const completed = COMPLETED_STATUSES.includes(r.status)
+  const declined = r.declined && !active
+  const dotClass = declined ? 'declined' : completed ? 'completed' : active ? 'active' : 'done'
+  const cert = r.certificate?.code
+  const stageIdx = STAGE_ORDER.indexOf(r.status)
+  const pct = completed ? 100 : active ? Math.max(8, Math.round((stageIdx / (STAGE_ORDER.length - 1)) * 100)) : 0
   return (
-    <div className={`request-card ${r.declined && !active ? 'muted' : ''}`}>
-      <div className="request-card-top">
-        <span className={`status-badge ${active ? 'matched' : ''} ${completed ? 'completed' : ''}`}>
-          {r.declined && !active ? 'Declined' : STATUS_LABEL[r.status] || r.status}
-        </span>
-        <span className="request-blood">{r.bloodGroup}</span>
-        <span className={`urgency-badge ${r.urgency}`}>
-          {r.urgency === 'emergency' ? '🚨' : '🕐'} {r.urgency}
-        </span>
+    <div className={`journey-item ${declined ? 'muted' : ''}`}>
+      <div className="journey-item-track">
+        <span className={`journey-item-dot ${dotClass}`}>{STATUS_ICON[r.status] || '·'}</span>
+        {!last && <span className="journey-item-line" />}
       </div>
-      <div className="request-card-meta">
-        <span>👤 {r.patientName || r.patient?.name || 'Patient'}</span>
-        <span>🏥 {r.hospital || 'Hospital'}</span>
-        <span>📍 {r.city || '—'}{r.area ? `, ${r.area}` : ''}</span>
-        <span>🩸 {r.units} unit{r.units > 1 ? 's' : ''}</span>
-        <span>⏱ {formatTimeAgo(r.updatedAt)}</span>
+      <div className="journey-item-body">
+        <div className="journey-item-top">
+          <span className={`journey-status ${dotClass}`}>
+            {declined ? 'Declined' : STATUS_LABEL[r.status] || r.status}
+          </span>
+          <span className="journey-blood">{r.bloodGroup}</span>
+          <span className={`urgency-badge ${r.urgency}`}>
+            {r.urgency === 'emergency' ? '🚨' : '🕐'} {r.urgency}
+          </span>
+          <span className="journey-time">{formatTimeAgo(r.updatedAt)}</span>
+        </div>
+        <div className="journey-item-title">
+          <span className="journey-patient-icon">👤</span>
+          {r.patientName || r.patient?.name || 'Patient'}
+        </div>
+        <div className="journey-item-meta">
+          <span>🏥 {r.hospital || 'Hospital'}</span>
+          <span>📍 {r.city || '—'}{r.area ? `, ${r.area}` : ''}</span>
+          <span>🩸 {r.units} unit{r.units > 1 ? 's' : ''}</span>
+          {completed && r.updatedAt && <span>🗓 {formatDate(r.updatedAt)}</span>}
+        </div>
+        {(active || completed) && (
+          <div className="journey-progress">
+            <div className="journey-progress-bar">
+              <span style={{ width: `${pct}%` }} />
+            </div>
+            <span className="journey-progress-label">
+              {completed ? '✓ Donation complete' : `${pct}% to completion`}
+            </span>
+          </div>
+        )}
+        <div className="journey-item-foot">
+          {active && trackLink && (
+            <Link to={trackLink} className="btn primary btn-sm">
+              📍 Track Live
+            </Link>
+          )}
+          {completed && cert && (
+            <Link to={`/certificate/${r._id}`} className="btn primary btn-sm">
+              🏅 View Certificate · {cert}
+            </Link>
+          )}
+          {completed && !cert && <span className="hint">✓ Donation completed</span>}
+          {r.status === 'cancelled' && <span className="hint">This journey was cancelled</span>}
+          {declined && <span className="hint">You declined this request</span>}
+        </div>
       </div>
-      <div className="request-actions">
-        {trackLink && active && (
-          <Link to={trackLink} className="btn primary btn-sm">
-            📍 Track Live
-          </Link>
-        )}
-        {completed && (
-          <Link to={`/certificate/${r._id}`} className="btn primary btn-sm">
-            🏅 View Certificate
-          </Link>
-        )}
-        {r.status === 'cancelled' && (
-          <span className="hint">This journey was cancelled</span>
-        )}
+    </div>
+  )
+}
+
+function Section({ icon, title, count, children }) {
+  return (
+    <div className="journey-section">
+      <div className="journey-section-head">
+        <div className="journey-section-title">
+          <span className="journey-section-ico">{icon}</span>
+          {title}
+        </div>
+        <span className="journey-section-count">{count}</span>
       </div>
+      {children}
     </div>
   )
 }
 
 export default function Journey() {
   const [journey, setJourney] = useState([])
-  const [certificates, setCertificates] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [lastSync, setLastSync] = useState(null)
+
+  const load = async () => {
+    try {
+      const { data } = await api.get('/donors/my-journey')
+      setJourney(data.journey || [])
+      setLastSync(new Date())
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load your journey')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let active = true
-    Promise.all([api.get('/donors/my-journey'), api.get('/donors/certificates')])
-      .then(([j, c]) => {
-        if (!active) return
-        setJourney(j.data.journey || [])
-        setCertificates(c.data.certificates || [])
-      })
-      .catch((err) => {
-        if (active) setError(err.response?.data?.message || 'Failed to load your journey')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
+    load()
+    const timer = setInterval(load, 6000)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const active = journey.filter((r) => ACTIVE_STATUSES.includes(r.status))
   const completed = journey.filter((r) => COMPLETED_STATUSES.includes(r.status))
-  const inactive = journey.filter((r) => !ACTIVE_STATUSES.includes(r.status) && !COMPLETED_STATUSES.includes(r.status))
+  const inactive = journey.filter(
+    (r) => !ACTIVE_STATUSES.includes(r.status) && !COMPLETED_STATUSES.includes(r.status),
+  )
+
+  const certCount = completed.filter((r) => r.certificate?.code).length
+  const livesSaved = completed.length * 3
+  const totalUnits = completed.reduce((sum, r) => sum + (r.units || 1), 0)
+  const dates = completed.map((r) => new Date(r.updatedAt).getTime()).filter(Boolean)
+  const firstDate = dates.length ? formatDate(new Date(Math.min(...dates))) : '—'
+  const lastDate = dates.length ? formatDate(new Date(Math.max(...dates))) : '—'
 
   return (
-    <div className="page page-wide">
-      <div className="dashboard-head">
-        <div>
-          <h2>Your Journey</h2>
-          <p className="hint">Every request you accepted, tracked live, and completed</p>
+    <div className="page page-wide journey-page">
+      <div className="journey-hero">
+        <div className="journey-hero-head">
+          <div>
+            <h2>My Donation Journey</h2>
+            <p className="hint">Every request you accepted, tracked live, and completed</p>
+          </div>
+          <span className="live-badge live-green">
+            <span className="live-dot"></span>
+            Live · synced {lastSync ? formatTimeAgo(lastSync) : '…'}
+          </span>
         </div>
-        <span className={`live-badge ${active.length === 0 ? 'live-green' : ''}`}>
-          <span className="live-dot"></span> {active.length} Active
-        </span>
+
+        <div className="journey-hero-stats">
+          <div className="journey-hero-stat">
+            <span className="journey-hero-stat-ico">🛞</span>
+            <strong>{active.length}</strong>
+            <span>Active Journeys</span>
+          </div>
+          <div className="journey-hero-stat">
+            <span className="journey-hero-stat-ico">✅</span>
+            <strong>{completed.length}</strong>
+            <span>Completed</span>
+          </div>
+          <div className="journey-hero-stat">
+            <span className="journey-hero-stat-ico">🏅</span>
+            <strong>{certCount}</strong>
+            <span>Certificates</span>
+          </div>
+          <div className="journey-hero-stat">
+            <span className="journey-hero-stat-ico">❤️</span>
+            <strong>{livesSaved}</strong>
+            <span>Lives Saved</span>
+          </div>
+        </div>
+      </div>
+
+      {livesSaved > 0 && (
+        <div className="journey-thanks">
+          <span className="journey-thanks-ico">🩸</span>
+          <div>
+            <strong>Thank you for being a lifesaver!</strong>
+            <p className="hint">
+              Your {totalUnits} unit{totalUnits > 1 ? 's' : ''} of blood has helped an estimated{' '}
+              {livesSaved} patient{livesSaved > 1 ? 's' : ''}. Keep the kindness going.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="journey-impact">
+        <div className="journey-impact-item">
+          <strong>{totalUnits}</strong>
+          <span>Units Donated</span>
+        </div>
+        <div className="journey-impact-item">
+          <strong>{firstDate}</strong>
+          <span>First Donation</span>
+        </div>
+        <div className="journey-impact-item">
+          <strong>{lastDate}</strong>
+          <span>Latest Donation</span>
+        </div>
+        <div className="journey-impact-item">
+          <strong>{journey.length}</strong>
+          <span>Total Requests</span>
+        </div>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -127,58 +245,42 @@ export default function Journey() {
         </div>
       )}
 
-      {active.length > 0 && (
-        <div className="card">
-          <h3>Active Journeys ({active.length})</h3>
-          <div className="request-list">
-            {active.map((r) => (
-              <RequestCard key={r._id} r={r} trackLink={`/tracking/donor/${r._id}`} />
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="journey-sections">
+        {active.length > 0 && (
+          <Section icon="🛞" title="Active Journeys" count={`${active.length} live`}>
+            <div className="journey-list">
+              {active.map((r, i) => (
+                <JourneyItem
+                  key={r._id}
+                  r={r}
+                  trackLink={`/tracking/donor/${r._id}`}
+                  last={i === active.length - 1}
+                />
+              ))}
+            </div>
+          </Section>
+        )}
 
-      {completed.length > 0 && (
-        <div className="card">
-          <h3>Completed ({completed.length})</h3>
-          <div className="request-list">
-            {completed.map((r) => (
-              <RequestCard key={r._id} r={r} />
-            ))}
-          </div>
-        </div>
-      )}
+        {completed.length > 0 && (
+          <Section icon="🎉" title="Completed Donations" count={completed.length}>
+            <div className="journey-list">
+              {completed.map((r, i) => (
+                <JourneyItem key={r._id} r={r} last={i === completed.length - 1} />
+              ))}
+            </div>
+          </Section>
+        )}
 
-      {certificates.length > 0 && (
-        <div className="card">
-          <h3>Donation Certificates ({certificates.length})</h3>
-          <div className="certificate-list">
-            {certificates.map((c) => (
-              <div key={c.requestId} className="certificate-row">
-                <span className="donation-blood">{c.bloodGroup}</span>
-                <span className="certificate-hosp">{c.hospital || 'Hospital'}</span>
-                <span className="certificate-patient">For {c.patientName}</span>
-                <span className="certificate-code">{c.code}</span>
-                <span className="donation-date">{formatDate(c.issuedAt)}</span>
-                <Link to={`/certificate/${c.requestId}`} className="btn ghost btn-sm">
-                  View
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {inactive.length > 0 && (
-        <div className="card">
-          <h3>Past ({inactive.length})</h3>
-          <div className="request-list">
-            {inactive.map((r) => (
-              <RequestCard key={r._id} r={r} />
-            ))}
-          </div>
-        </div>
-      )}
+        {inactive.length > 0 && (
+          <Section icon="📁" title="Past Requests" count={inactive.length}>
+            <div className="journey-list">
+              {inactive.map((r, i) => (
+                <JourneyItem key={r._id} r={r} last={i === inactive.length - 1} />
+              ))}
+            </div>
+          </Section>
+        )}
+      </div>
     </div>
   )
 }

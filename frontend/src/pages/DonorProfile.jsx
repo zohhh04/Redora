@@ -75,7 +75,6 @@ export default function DonorProfile() {
     bloodGroup: user?.bloodGroup || '',
     lastDonationDate: toInputDate(user?.lastDonationDate),
     mobile: user?.mobile || '',
-    alertEmail: user?.alertEmail || '',
     availableForDonation: user?.availableForDonation ?? false,
     availableForEmergencies: user?.availableForEmergencies ?? false,
     travelRadiusKm: user?.travelRadiusKm || 25,
@@ -229,7 +228,6 @@ export default function DonorProfile() {
         bloodGroup: form.bloodGroup,
         lastDonationDate: form.lastDonationDate || null,
         mobile: form.mobile,
-        alertEmail: form.alertEmail,
         availableForDonation: form.availableForDonation,
         availableForEmergencies: form.availableForEmergencies,
         city,
@@ -248,131 +246,152 @@ export default function DonorProfile() {
   }
 
   return (
-    <div className="page profile-page">
+    <div className="page page-wide profile-page">
+      <div className="profile-hero">
+        <span className="profile-hero-avatar">
+          {(user.name || '?')
+            .split(' ')
+            .map((s) => s[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase()}
+        </span>
+        <div className="profile-hero-info">
+          <h2>{user.name}</h2>
+          <p className="hint">{user.email}</p>
+        </div>
+        <span className="profile-blood-badge">{form.bloodGroup || '?'}</span>
+      </div>
+
       <form className="card profile-form" onSubmit={handleSubmit}>
-        <h3>Donor Details</h3>
-
-        <label className="field">
-          <span>Name (cannot be changed)</span>
-          <input value={user.name} disabled />
-        </label>
-        <label className="field">
-          <span>Email (cannot be changed)</span>
-          <input value={user.email} disabled />
-        </label>
-        <label className="field">
-          <span>Blood Group</span>
-          <select
-            name="bloodGroup"
-            value={form.bloodGroup}
-            onChange={handleChange}
-            className="select"
-          >
-            <option value="">Select blood group</option>
-            {bloodGroups.map((bg) => (
-              <option key={bg} value={bg}>
-                {bg}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Last Donation Date</span>
-          <input
-            type="date"
-            name="lastDonationDate"
-            value={form.lastDonationDate}
-            onChange={handleChange}
-          />
-        </label>
-        <label className="field">
-          <span>Mobile Number</span>
-          <input
-            name="mobile"
-            placeholder="Enter mobile number"
-            value={form.mobile}
-            onChange={handleChange}
-          />
-        </label>
-        <label className="field">
-          <span>Alert Email (for blood requests)</span>
-          <input
-            type="email"
-            name="alertEmail"
-            placeholder={user.email}
-            value={form.alertEmail}
-            onChange={handleChange}
-          />
-          <small className="hint">
-            Urgent blood request emails go here. Leave empty to use your account email ({user.email}).
-          </small>
-        </label>
-
-        <div className="field">
-          <span>Live Location</span>
-          <div className="location-row">
-            <input
-              name="locationLabel"
-              placeholder="Start live tracking to capture your location"
-              value={location?.label || ''}
-              readOnly
-            />
-            {!tracking ? (
-              <button type="button" className="btn primary location-track-btn" onClick={startTracking}>
-                📍 Start Live Tracking
-              </button>
-            ) : (
-              <button type="button" className="btn ghost location-track-btn" onClick={stopTracking}>
-                ⏹ Stop Tracking
-              </button>
-            )}
+        <div className="profile-section">
+          <div className="profile-section-head">
+            <span className="profile-section-ico">👤</span>
+            <h3>Basic Details</h3>
           </div>
-          <small className={`hint ${tracking ? 'tracking-on' : ''}`}>
-            {tracking
-              ? `Live tracking is on — your location updates as you move${lastUpdated ? ` · last updated ${lastUpdated}` : ''}`
-              : 'Your location is used to show you as a donor inside the request’s 5 km radius.'}
-          </small>
+          <div className="profile-grid">
+            <label className="field">
+              <span>Name (cannot be changed)</span>
+              <input value={user.name} disabled />
+            </label>
+            <label className="field">
+              <span>Email (cannot be changed)</span>
+              <input value={user.email} disabled />
+            </label>
+            <label className="field">
+              <span>Blood Group</span>
+              <select
+                name="bloodGroup"
+                value={form.bloodGroup}
+                onChange={handleChange}
+                className="select"
+              >
+                <option value="">Select blood group</option>
+                {bloodGroups.map((bg) => (
+                  <option key={bg} value={bg}>
+                    {bg}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Mobile Number</span>
+              <input
+                name="mobile"
+                placeholder="Enter mobile number"
+                value={form.mobile}
+                onChange={handleChange}
+              />
+            </label>
+          </div>
+          <label className="field">
+            <span>Last Donation Date</span>
+            <input
+              type="date"
+              name="lastDonationDate"
+              value={form.lastDonationDate}
+              onChange={handleChange}
+            />
+          </label>
         </div>
 
-        {location && location.lat != null && <LocationMap location={location} />}
+        <div className="profile-section">
+          <div className="profile-section-head">
+            <span className="profile-section-ico">📍</span>
+            <h3>Location &amp; Travel</h3>
+          </div>
+          <div className="field">
+            <span>Live Location</span>
+            <div className="location-row">
+              <input
+                name="locationLabel"
+                placeholder="Start live tracking to capture your location"
+                value={location?.label || ''}
+                readOnly
+              />
+              {!tracking ? (
+                <button type="button" className="btn primary location-track-btn" onClick={startTracking}>
+                  📍 Start Live Tracking
+                </button>
+              ) : (
+                <button type="button" className="btn ghost location-track-btn" onClick={stopTracking}>
+                  ⏹ Stop Tracking
+                </button>
+              )}
+            </div>
+            <small className={`hint ${tracking ? 'tracking-on' : ''}`}>
+              {tracking
+                ? `Live tracking is on — your location updates as you move${lastUpdated ? ` · last updated ${lastUpdated}` : ''}`
+                : 'Your location is used to show you as a donor inside the request’s 5 km radius.'}
+            </small>
+          </div>
 
-        <label className="field">
-          <span>Travel Radius (km)</span>
-          <input
-            type="number"
-            min="1"
-            max="200"
-            name="travelRadiusKm"
-            placeholder="How far you can travel to donate"
-            value={form.travelRadiusKm}
-            onChange={handleChange}
-          />
-        </label>
+          {location && location.lat != null && <LocationMap location={location} />}
 
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            name="availableForDonation"
-            checked={form.availableForDonation}
-            onChange={handleChange}
-          />
-          <span>
-            <strong>Available for donation</strong>
-            <small>Show me as a donor who can give blood when a request comes in.</small>
-          </span>
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            name="availableForEmergencies"
-            checked={form.availableForEmergencies}
-            onChange={handleChange}
-          />
-          <span>
-            <strong>Available for emergencies</strong>
-            <small>Notify me first for urgent blood requests near me.</small>
-          </span>
-        </label>
+          <label className="field">
+            <span>Travel Radius (km)</span>
+            <input
+              type="number"
+              min="1"
+              max="200"
+              name="travelRadiusKm"
+              placeholder="How far you can travel to donate"
+              value={form.travelRadiusKm}
+              onChange={handleChange}
+            />
+          </label>
+        </div>
+
+        <div className="profile-section">
+          <div className="profile-section-head">
+            <span className="profile-section-ico">⚡</span>
+            <h3>Availability</h3>
+          </div>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              name="availableForDonation"
+              checked={form.availableForDonation}
+              onChange={handleChange}
+            />
+            <span>
+              <strong>Available for donation</strong>
+              <small>Show me as a donor who can give blood when a request comes in.</small>
+            </span>
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              name="availableForEmergencies"
+              checked={form.availableForEmergencies}
+              onChange={handleChange}
+            />
+            <span>
+              <strong>Available for emergencies</strong>
+              <small>Notify me first for urgent blood requests near me.</small>
+            </span>
+          </label>
+        </div>
 
         {error && <p className="error">{error}</p>}
         {success && <p className="success">{success}</p>}

@@ -34,14 +34,21 @@ const getMyDonations = async (req, res) => {
       status: "completed",
     })
       .sort({ updatedAt: -1 })
+      .populate("patient", "name")
 
     res.json({
       donations: requests.map((r) => ({
         id: r._id,
         date: r.updatedAt,
         bloodGroup: r.bloodGroup,
+        units: r.units,
         hospital: r.hospital,
+        city: r.city,
+        area: r.area,
+        urgency: r.urgency,
         status: "Completed",
+        patientName: r.patientName || r.patient?.name || "Patient",
+        certificateCode: r.certificate?.code || null,
       })),
     })
   } catch (error) {

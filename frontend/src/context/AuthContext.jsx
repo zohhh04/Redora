@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import api from '../api/axios'
 
 const AuthContext = createContext(null)
@@ -7,18 +7,25 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const restoreSession = useCallback(async () => {
     const token = localStorage.getItem('token')
-    if (!token) {
-      setLoading(false)
-      return
+    if (!token) return { ok: false, code: 'none' }
+    try {
+      const { data } = await api.get('/auth/me')
+      setUser(data.user)
+      return { ok: true, code: 'ok' }
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token')
+        return { ok: false, code: 'invalid' }
+      }
+      return { ok: false, code: 'network' }
     }
-    api
-      .get('/auth/me')
-      .then(({ data }) => setUser(data.user))
-      .catch(() => localStorage.removeItem('token'))
-      .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    restoreSession().finally(() => setLoading(false))
+  }, [restoreSession])
 
   const login = (token, userData) => {
     localStorage.setItem('token', token)
@@ -33,7 +40,7 @@ export function AuthProvider({ children }) {
   const updateUser = (userData) => setUser(userData)
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, restoreSession }}>
       {children}
     </AuthContext.Provider>
   )

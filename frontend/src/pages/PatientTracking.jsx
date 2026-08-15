@@ -7,12 +7,12 @@ import LiveMap from '../components/LiveMap'
 import MessagePanel from '../components/MessagePanel'
 
 const LINEAR_STAGES = [
-  { stage: 'matched', icon: '🤝', label: 'Donor Matched' },
-  { stage: 'accepted', icon: '✅', label: 'Donation Approved' },
-  { stage: 'traveling', icon: '🚗', label: 'Donor En Route' },
-  { stage: 'arrived', icon: '🏥', label: 'Donor Arrived' },
-  { stage: 'donating', icon: '🩸', label: 'Donation In Progress' },
-  { stage: 'completed', icon: '🎉', label: 'Donation Completed' },
+  { stage: 'matched', icon: '🤝', label: 'Donor Matched', sub: 'A donor was matched to your request' },
+  { stage: 'accepted', icon: '✅', label: 'Trip Started', sub: 'You approved the donor — the trip has started' },
+  { stage: 'traveling', icon: '🚗', label: 'Donor On The Way', sub: 'Donor is heading to the hospital' },
+  { stage: 'arrived', icon: '🏥', label: 'Donor Arrived', sub: 'Donor reached the hospital' },
+  { stage: 'donating', icon: '🩸', label: 'Donation In Progress', sub: 'The donation is happening at the hospital' },
+  { stage: 'completed', icon: '🎉', label: 'Donation Completed', sub: 'Donation completed successfully' },
 ]
 
 const STATUS_LABEL = {
@@ -141,6 +141,9 @@ export default function PatientTracking() {
   const canCancel = !completed && !cancelled
 
   const destination = [request.hospital, request.city, request.area].filter(Boolean).join(', ')
+  const cityName = (request.city || '').toLowerCase().trim()
+  const hospName = (request.hospital || '').toLowerCase().trim()
+  const cityDuplicatesHospital = cityName !== '' && cityName === hospName
 
   const travelingEntry = [...request.journey].reverse().find((e) => e.stage === 'traveling')
   const serverLive =
@@ -155,19 +158,33 @@ export default function PatientTracking() {
       : null
   const mapOrigin = donorPosition || homePosition
   const usingHome = !donorPosition && homePosition
+  const activeMode = request.travelMode || 'car'
+  const MODES = {
+    car: { icon: '🚗', label: 'Coming by car' },
+    bike: { icon: '🛵', label: 'Coming by bike' },
+    walk: { icon: '🚶', label: 'Coming on foot' },
+  }
+  const tripStarted =
+    status === 'traveling' || status === 'arrived' || status === 'donating' || completed
 
   const donorLive = !!donorPosition
   const showMap = status === 'matched' || status === 'accepted' || status === 'traveling' || status === 'arrived' || status === 'donating'
 
-  let etaMain = 'Waiting for route…'
-  let etaSub = donor ? `${donor.name} hasn't started the trip yet` : 'Waiting for a donor to accept…'
-  if (eta?.etaSeconds != null) {
-    etaMain = `~${formatEta(eta.etaSeconds)}`
-    etaSub = donorLive
-      ? `Donor arrives in about ${formatEta(eta.etaSeconds)} · ${eta.distanceKm} km away`
-      : usingHome
-        ? `Estimated drive from ${donor.name}'s home · ${eta.distanceKm} km away`
-        : `About ${formatEta(eta.etaSeconds)} away · ${eta.distanceKm} km`
+  const sharedRoute = request.route
+  const sharedEta = sharedRoute?.eta || sharedRoute?.etas || null
+  const sharedDist = sharedRoute?.distanceKm ?? null
+
+  let etaMain = 'Waiting for the trip to start…'
+  let etaSub = donor
+    ? `${donor.name} hasn't started the trip yet. As soon as they do, their mode of travel and arrival time will show here.`
+    : 'Waiting for a donor to accept…'
+  if (tripStarted) {
+    const secs = sharedEta?.[activeMode] ?? eta?.etas?.[activeMode]
+    const distKm = sharedDist ?? eta?.distanceKm
+    if (secs != null) {
+      etaMain = `~${formatEta(secs)}`
+      etaSub = `${MODES[activeMode].label} · ${distKm} km away · arriving at ${request.hospital || 'the hospital'}`
+    }
   }
   if (status === 'arrived') { etaMain = 'Arrived 🏥'; etaSub = `${donor?.name || 'The donor'} has reached ${request.hospital || 'the hospital'} and is checking in` }
   if (status === 'donating') { etaMain = 'Donating 🩸'; etaSub = 'The donation is in progress with the hospital team' }
@@ -219,16 +236,18 @@ export default function PatientTracking() {
           <span className="chip-bg chip-blood">{request.bloodGroup}</span>
           {request.units} unit{request.units > 1 ? 's' : ''} needed
         </span>
-        {request.hospital && (
+        {!cityDuplicatesHospital && request.hospital && (
           <span className="summary-chip">
             <span className="chip-bg">🏥</span>
             <span className="summary-chip-text">{request.hospital}</span>
           </span>
         )}
-        <span className="summary-chip">
-          <span className="chip-bg">📍</span>
-          {request.city || '—'}
-        </span>
+        {!cityDuplicatesHospital && request.city && (
+          <span className="summary-chip">
+            <span className="chip-bg">📍</span>
+            {request.city}
+          </span>
+        )}
       </div>
 
       {msg && <p className="success">{msg}</p>}
@@ -260,12 +279,19 @@ export default function PatientTracking() {
 
         {showMap ? (
           <>
-            <LiveMap origin={mapOrigin} destination={destination} height={300} showNavigate={false} onRoute={onRoute} />
+            <LiveMap origin={mapOrigin} destination={destination} height={440} showNavigate={false} onRoute={onRoute} storedRoute={request.route} />
             <div className={`eta-banner ${completed ? 'eta-done' : ''}`}>
-              <span className="eta-banner-ico">{donorLive ? '🛞' : completed ? '🎉' : '⏱'}</span>
+              <span className="eta-banner-ico">{tripStarted ? MODES[activeMode].icon : completed ? '🎉' : '⏱'}</span>
               <div className="eta-banner-info">
                 <span className="eta-main">{etaMain}</span>
                 <span className="eta-secondary">{etaSub}</span>
+                {tripStarted && (sharedEta || eta?.etas) && (
+                  <div className="mode-etas">
+                    <span className="mode-eta active">
+                      {MODES[activeMode].icon} {MODES[activeMode].label}
+                    </span>
+                  </div>
+                )}
               </div>
               <span className="card-head-live">Live · synced {lastSync ? formatTime(lastSync) : '…'}</span>
             </div>
@@ -282,45 +308,39 @@ export default function PatientTracking() {
         <section className="tracking-card">
           <div className="card-head">
             <span className="card-head-icon">📋</span>
-            <h3>Donation Timeline</h3>
+            <h3>Journey Timeline</h3>
           </div>
 
           {status === 'open' ? (
             <p className="hint">Waiting for a donor to accept this request…</p>
           ) : (
-            <div className="timeline">
+            <div className="stepper">
               {LINEAR_STAGES.map((s, i) => {
                 const done = linearDone.has(s.stage)
                 const active = i === currentIndex
-                const pending = !done && i > (currentIndex === -1 ? 0 : currentIndex)
+                const nextDone =
+                  i + 1 < LINEAR_STAGES.length && linearDone.has(LINEAR_STAGES[i + 1].stage)
                 const stage_entry = request.journey.find((e) => e.stage === s.stage)
                 return (
                   <div
                     key={s.stage}
-                    className={`timeline-item ${done ? 'done' : ''} ${active ? 'active' : ''} ${pending ? 'pending' : ''}`}
+                    className={`stepper-step ${done ? 'done' : ''} ${active ? 'active' : ''}`}
                   >
-                    <div className="timeline-marker">
-                      <span className="timeline-dot">{done || active ? s.icon : ''}</span>
-                      <span className="timeline-line"></span>
+                    <div className="stepper-track">
+                      <span className={`stepper-line left${done ? ' filled' : ''}`} />
+                      <span className="stepper-dot">{s.icon}</span>
+                      <span className={`stepper-line right${nextDone ? ' filled' : ''}`} />
                     </div>
-                    <div className="timeline-body">
-                      <div className="timeline-row">
-                        <div className="timeline-content">
-                          <span className="timeline-label">
-                            {s.label}
-                            {active && <span className="timeline-now">· now</span>}
-                          </span>
-                          {stage_entry?.location && (
-                            <span className="timeline-loc">📍 {stage_entry.location.replace(/^lat:[\d.,-]+lng:[\d.,-]+/, 'Location shared')}</span>
-                          )}
-                          {stage_entry?.note && <span className="timeline-note">{stage_entry.note}</span>}
-                        </div>
-                        {stage_entry && (
-                          <span className="timeline-time">
-                            {formatDate(stage_entry.at)} {formatTime(stage_entry.at)}
-                          </span>
-                        )}
-                      </div>
+                    <div className="stepper-info">
+                      <span className="stepper-name">
+                        {s.label}
+                        {active && <span className="timeline-now"> · now</span>}
+                      </span>
+                      <span className="stepper-meta">
+                        {stage_entry
+                          ? `${formatDate(stage_entry.at)} ${formatTime(stage_entry.at)}${s.stage === 'traveling' && stage_entry.note ? ` · ${stage_entry.note}` : ''}`
+                          : s.sub}
+                      </span>
                     </div>
                   </div>
                 )

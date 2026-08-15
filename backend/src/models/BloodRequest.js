@@ -35,6 +35,13 @@ const requestSchema = new mongoose.Schema(
       default: "open",
     },
     notes: { type: String, default: "" },
+    travelMode: { type: String, enum: ["car", "bike", "walk"], default: "car" },
+    route: {
+      geometry: { type: mongoose.Schema.Types.Mixed, default: null },
+      distanceKm: { type: Number, default: null },
+      eta: { type: mongoose.Schema.Types.Mixed, default: null },
+      at: { type: Date, default: null },
+    },
     liveLocation: {
       lat: { type: Number, default: null },
       lng: { type: Number, default: null },

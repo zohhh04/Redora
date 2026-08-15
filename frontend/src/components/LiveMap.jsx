@@ -3,6 +3,86 @@ import L from 'leaflet'
 import api from '../api/axios'
 
 const OSRM = 'https://router.project-osrm.org/route/v1/driving'
+const AVG_CAR_KMH = 30
+const AVG_BIKE_KMH = 20
+const AVG_WALK_KMH = 5
+
+const MANEUVER_ICON = {
+  depart: '🚗',
+  arrive: '🏁',
+  'turn left': '↰',
+  'turn right': '↱',
+  'turn sharp left': '⬅',
+  'turn sharp right': '➡',
+  'turn slight left': '↖',
+  'turn slight right': '↗',
+  continue: '⬆',
+  straight: '⬆',
+  uturn: '↩',
+  merge: '⇥',
+  ramp: '↗',
+  fork: '⤴',
+  'end of road': '❯',
+  roundabout: '🔄',
+  rotary: '🔄',
+  'on ramp': '↗',
+  'off ramp': '↱',
+  'new name': '↦',
+}
+
+function stepInstruction(step) {
+  const type = step.maneuver?.type
+  const mod = step.maneuver?.modifier
+  const road = step.name && step.name !== '-' ? step.name : ''
+  switch (type) {
+    case 'depart':
+      return `Head ${mod || 'straight'}${road ? ` on ${road}` : ''}`
+    case 'arrive':
+      return 'Arrive at your destination'
+    case 'continue':
+      return `Continue${road ? ` onto ${road}` : ''}`
+    case 'end of road':
+      return `At the end of the road, turn ${mod || 'left'}${road ? ` onto ${road}` : ''}`
+    case 'turn':
+      return `Turn ${mod || ''}${road ? ` onto ${road}` : ''}`.replace('  ', ' ')
+    case 'new name':
+      return `Continue onto ${road}`
+    case 'merge':
+      return `Merge${road ? ` onto ${road}` : ''}`
+    case 'ramp':
+      return `Take the ramp ${mod ? `${mod} ` : ''}${road ? ` onto ${road}` : ''}`
+    case 'fork':
+      return `Keep ${mod || ''}${road ? ` onto ${road}` : ''}`.replace('  ', ' ')
+    case 'roundabout':
+    case 'rotary':
+      return `At the ${type}, take the ${mod || 'first'} exit${road ? ` onto ${road}` : ''}`
+    case 'uturn':
+      return `Make a U-turn${road ? ` onto ${road}` : ''}`
+    default:
+      return `${(mod || type || 'Continue')[0].toUpperCase()}${(mod || type || 'Continue').slice(1)}${road ? ` onto ${road}` : ''}`
+  }
+}
+
+function haversineKm(a, b) {
+  const R = 6371
+  const toRad = (d) => (d * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+// Car uses the real driving duration when available; bike/walk are estimated
+// from the route distance using typical average speeds.
+function estimateModes(distKm, carSeconds) {
+  return {
+    car: carSeconds != null ? carSeconds : Math.round((distKm / AVG_CAR_KMH) * 3600),
+    bike: Math.round((distKm / AVG_BIKE_KMH) * 3600),
+    walk: Math.round((distKm / AVG_WALK_KMH) * 3600),
+  }
+}
 
 const donorIcon = L.divIcon({
   className: '',
@@ -25,6 +105,8 @@ export default function LiveMap({
   height = 320,
   showNavigate = true,
   onRoute,
+  onDirections,
+  storedRoute = null,
 }) {
   const mapRef = useRef(null)
   const mapEl = useRef(null)
@@ -33,8 +115,7 @@ export default function LiveMap({
   const [status, setStatus] = useState('')
   const [dest, setDest] = useState(null)
   const [coords, setCoords] = useState(null)
-  const [etaSeconds, setEtaSeconds] = useState(null)
-  const [distanceKm, setDistanceKm] = useState(null)
+  const [directions, setDirections] = useState([])
 
   useEffect(() => {
     if (!mapEl.current || mapRef.current) return
@@ -120,31 +201,58 @@ export default function LiveMap({
       map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], [coords.lat, coords.lng]]), { padding: [40, 40] })
     }
 
+    // When the donor's shared optimized route exists, draw exactly that so both
+    // the donor and patient see the same path.
+    if (storedRoute?.geometry) {
+      if (l.route) map.removeLayer(l.route)
+      l.route = L.geoJSON(storedRoute.geometry, { color: '#2563eb', weight: 5, opacity: 0.85 }).addTo(map)
+      map.fitBounds(l.route.getBounds().pad(0.15))
+      onRoute?.({
+        etas: storedRoute.etas || storedRoute.eta || null,
+        distanceKm: storedRoute.distanceKm ?? null,
+        geometry: storedRoute.geometry,
+      })
+      return
+    }
+
     if (!showRoute) {
       if (l.route) {
         map.removeLayer(l.route)
         l.route = null
       }
-      setEtaSeconds(null)
-      setDistanceKm(null)
-      onRoute?.({ etaSeconds: null, distanceKm: null })
+      onRoute?.({ etas: null, distanceKm: null, geometry: null })
       fitToPoints()
       return
     }
 
     const requestId = ++routeFetchRef.current
     setStatus('')
+    setDirections([])
     fetch(
-      `${OSRM}/${origin.lng},${origin.lat};${coords.lng},${coords.lat}?overview=full&geometries=geojson`,
+      `${OSRM}/${origin.lng},${origin.lat};${coords.lng},${coords.lat}?overview=full&geometries=geojson&steps=true`,
     )
       .then((r) => r.json())
       .then((data) => {
         if (!mapRef.current || routeFetchRef.current !== requestId) return
         if (data.code !== 'Ok') throw new Error('No route found')
         const route = data.routes[0]
-        setEtaSeconds(Math.round(route.duration))
-        setDistanceKm((route.distance / 1000).toFixed(1))
-        onRoute?.({ etaSeconds: Math.round(route.duration), distanceKm: (route.distance / 1000).toFixed(1) })
+        const distKm = route.distance / 1000
+        const modes = estimateModes(distKm, Math.round(route.duration))
+        onRoute?.({ etas: modes, distanceKm: distKm.toFixed(1), geometry: route.geometry })
+
+        const steps = route.legs?.[0]?.steps || []
+        const dirs = steps
+          .filter((st) => st.distance > 0 || st.maneuver?.type === 'arrive')
+          .map((st) => ({
+            text: stepInstruction(st),
+            dist:
+              st.distance >= 1000
+                ? `${(st.distance / 1000).toFixed(1)} km`
+                : `${Math.round(st.distance)} m`,
+            icon: MANEUVER_ICON[st.maneuver?.type] || '▸',
+          }))
+        setDirections(dirs)
+        onDirections?.(dirs)
 
         const line = L.geoJSON(route.geometry, { color: '#2563eb', weight: 5, opacity: 0.85 })
         if (l.route) {
@@ -155,9 +263,9 @@ export default function LiveMap({
       })
       .catch(() => {
         if (!mapRef.current || routeFetchRef.current !== requestId) return
-        setEtaSeconds(null)
-        setDistanceKm(null)
-        onRoute?.({ etaSeconds: null, distanceKm: null })
+        const distKm = haversineKm(origin, coords)
+        const modes = estimateModes(distKm, null)
+        onRoute?.({ etas: modes, distanceKm: distKm.toFixed(1), geometry: null })
         if (l.route) {
           map.removeLayer(l.route)
         }
@@ -170,7 +278,7 @@ export default function LiveMap({
         ).addTo(map)
         fitToPoints()
       })
-  }, [originKey, destKey, showRoute, onRoute])
+  }, [originKey, destKey, showRoute, onRoute, storedRoute])
 
   useEffect(() => {
     return () => {
@@ -182,32 +290,26 @@ export default function LiveMap({
     }
   }, [])
 
-  const directionsUrl = coords
-    ? `https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}&travelmode=driving`
-    : ''
-
-  const formatEta = (sec) => {
-    if (sec == null) return ''
-    const m = Math.floor(sec / 60)
-    const h = Math.floor(m / 60)
-    return h > 0 ? `${h}h ${m % 60}m` : `${m % 60}m`
-  }
-
   return (
     <div className="map-wrap">
       <div ref={mapEl} className="live-map" style={{ height }} />
-      {showRoute && etaSeconds != null && (
-        <div className="map-eta">
-          <span className="eta-time">⏱ {formatEta(etaSeconds)}</span>
-          <span className="eta-dist">to reach hospital</span>
-          <span className="eta-km">{distanceKm} km</span>
-        </div>
-      )}
       {status && <p className="map-status">{status}</p>}
-      {showNavigate && directionsUrl && (
-        <a href={directionsUrl} target="_blank" rel="noreferrer" className="btn primary btn-sm map-nav-btn">
-          🧭 Navigate with Google Maps
-        </a>
+      {showNavigate && directions.length > 0 && (
+        <details className="directions-box" open={directions.length <= 3}>
+          <summary>
+            🧭 Turn-by-turn directions
+            <span className="directions-count">{directions.length} steps</span>
+          </summary>
+          <ol className="directions-list">
+            {directions.map((d, i) => (
+              <li key={i} className="directions-item">
+                <span className="dir-icon">{d.icon}</span>
+                <span className="dir-text">{d.text}</span>
+                <span className="dir-dist">{d.dist}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
     </div>
   )

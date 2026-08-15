@@ -55,8 +55,13 @@ export default function MessagePanel({ requestId, otherName }) {
         setOpen(false)
       }
     }
+    const onScroll = () => setOpen(false)
     document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('scroll', onScroll)
+    }
   }, [open])
 
   const mine = (m) => String(m.from?._id) === String(user?.id)
