@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
-
-const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+import { useRealtimeRequest } from '../hooks/useRealtime'
 
 function formatDate(date) {
   if (!date) return '—'
@@ -43,9 +42,6 @@ export default function PatientDashboard() {
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const [search, setSearch] = useState({ bloodGroup: '', city: '', available: true })
-  const [searchResults, setSearchResults] = useState([])
-  const [searchMsg, setSearchMsg] = useState('')
   const [reqMsg, setReqMsg] = useState('')
   const [reqError, setReqError] = useState('')
 
@@ -60,36 +56,7 @@ export default function PatientDashboard() {
     loadRequests()
   }, [])
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      api
-        .get('/requests/my')
-        .then(({ data }) => setRequests(data.requests || []))
-        .catch(() => {})
-    }, 4000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const handleSearchChange = (e) =>
-    setSearch({ ...search, [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
-
-  const searchDonors = async (e) => {
-    e.preventDefault()
-    setSearchMsg('')
-    try {
-      const { data } = await api.get('/donors/search', {
-        params: {
-          bloodGroup: search.bloodGroup || undefined,
-          city: search.city || undefined,
-          available: search.available ? 'true' : undefined,
-        },
-      })
-      setSearchResults(data.donors || [])
-      if (!data.donors?.length) setSearchMsg('No donors found for these filters.')
-    } catch (err) {
-      setSearchMsg(err.response?.data?.message || 'Search failed')
-    }
-  }
+  useRealtimeRequest(loadRequests)
 
   const manageDonor = async (id, action, goTo) => {
     setReqMsg('')
@@ -243,59 +210,37 @@ export default function PatientDashboard() {
       {reqMsg && <p className="success">{reqMsg}</p>}
       {reqError && <p className="error">{reqError}</p>}
 
-      <div className="donor-stats-hero overview-hero">
-        <div className="donor-stats-hero-head">
-          <div>
-            <h2>Overview</h2>
-            <p className="hint">A quick glance at your blood requests and impact</p>
-          </div>
+      <div className="journey-welcome">
+        <div className="journey-welcome-body">
+          <h2>Welcome back, {user?.name?.split(' ')[0] || 'Patient'} 💉</h2>
+          <p className="hint">
+            {active.length > 0
+              ? 'You have active journeys in progress — keep an eye on them below.'
+              : open.length > 0
+                ? 'Some requests are still looking for a donor. Check their matches below.'
+                : completed.length > 0
+                  ? 'Great work — your completed requests are making a real difference.'
+                  : 'Create a blood request below to find a donor near you.'}
+          </p>
         </div>
-        <div className="overview-grid">
-          <div className="donor-stat-card">
-            <span className="donor-stat-ico">🛞</span>
-            <div className="donor-stat-body">
-              <strong>{active.length}</strong>
-              <span>Active</span>
-            </div>
-          </div>
-          <div className="donor-stat-card">
-            <span className="donor-stat-ico">🔍</span>
-            <div className="donor-stat-body">
-              <strong>{open.length}</strong>
-              <span>Open</span>
-            </div>
-          </div>
-          <div className="donor-stat-card">
-            <span className="donor-stat-ico">🎉</span>
-            <div className="donor-stat-body">
-              <strong>{completed.length}</strong>
-              <span>Completed</span>
-            </div>
-          </div>
-          <div className="donor-stat-card">
-            <span className="donor-stat-ico">🩸</span>
-            <div className="donor-stat-body">
-              <strong>{totalUnits}</strong>
-              <span>Units Received</span>
-            </div>
-          </div>
-          <div className="donor-stat-card accent">
-            <span className="donor-stat-ico">❤️</span>
-            <div className="donor-stat-body">
-              <strong>{livesSaved}</strong>
-              <span>Lives Saved</span>
-            </div>
-          </div>
+        <div className="journey-welcome-actions">
+          <Link to="/request-blood" className="btn white btn-sm">
+            + New Blood Request
+          </Link>
+          <Link to="/my-requests" className="btn ghost btn-sm">
+            My Requests
+          </Link>
         </div>
-        <p className="overview-note">
-          {active.length > 0
-            ? 'You have active journeys in progress — keep an eye on them below.'
-            : open.length > 0
-              ? 'Some requests are still looking for a donor. Check their matches below.'
-              : completed.length > 0
-                ? 'Great work — your completed donations are making a real difference.'
-                : 'Create a blood request below to find a donor near you.'}
-        </p>
+      </div>
+
+      <div className="journey-tip">
+        <span className="journey-tip-ico">💡</span>
+        <div className="journey-tip-body">
+          <strong>Need blood fast?</strong>
+          <p>
+            Say &quot;Request blood&quot; to AURA — it will post a request for you by voice.
+          </p>
+        </div>
       </div>
 
       {loading ? (
@@ -353,63 +298,6 @@ export default function PatientDashboard() {
           )}
         </>
       )}
-
-      <div className="card">
-        <h3>Search Donors</h3>
-        <form className="search-form" onSubmit={searchDonors}>
-          <label className="field">
-            <span>Blood Group</span>
-            <select name="bloodGroup" value={search.bloodGroup} onChange={handleSearchChange} className="select">
-              <option value="">Any</option>
-              {bloodGroups.map((bg) => (
-                <option key={bg} value={bg}>
-                  {bg}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>City</span>
-            <input name="city" placeholder="e.g. Hyderabad" value={search.city} onChange={handleSearchChange} />
-          </label>
-          <label className="checkbox-row search-avail">
-            <input
-              type="checkbox"
-              name="available"
-              checked={search.available}
-              onChange={handleSearchChange}
-            />
-            <span>
-              <strong>Only currently available</strong>
-            </span>
-          </label>
-          <button className="btn primary">Search</button>
-        </form>
-
-        {searchMsg && <p className="hint">{searchMsg}</p>}
-
-        {searchResults.length > 0 && (
-          <div className="request-list donor-results">
-            {searchResults.map((d) => (
-              <div key={d._id} className="request-card">
-                <div className="request-card-top">
-                  <span className="request-blood">{d.bloodGroup}</span>
-                  <span className={`status-badge ${d.eligible ? 'open' : 'matched'}`}>
-                    {d.eligible ? '✅ Eligible' : '⏳ Not eligible'}
-                  </span>
-                  <span className="request-score">{d.donationCount} donations</span>
-                </div>
-                <div className="request-card-meta">
-                  <span>👤 {d.name}</span>
-                  <span>📍 {d.city || '—'}{d.area ? `, ${d.area}` : ''}</span>
-                  <span>📱 {d.mobile || '—'}</span>
-                  <span>{d.availableForDonation ? '🟢 Available' : '🔴 Unavailable'}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   )
 }

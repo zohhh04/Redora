@@ -31,9 +31,12 @@ export default function Navbar() {
         .catch(() => {})
     load()
     const timer = setInterval(load, 10000)
+    const onMarkAllRead = () => load()
+    window.addEventListener('redora:notif-read', onMarkAllRead)
     return () => {
       active = false
       clearInterval(timer)
+      window.removeEventListener('redora:notif-read', onMarkAllRead)
     }
   }, [user?.role, location.pathname])
 
@@ -59,12 +62,12 @@ export default function Navbar() {
         {user && (user.role === 'donor' || user.role === 'patient') && (
           <button
             type="button"
-            className="notif-bell"
+            className="btn nav-btn notif-bell"
             onClick={() => navigate('/notifications')}
             aria-label="Notifications"
             title="Notifications"
           >
-            🔔
+            Notification
             {unread > 0 && <span className="notif-badge">{unread > 9 ? '9+' : unread}</span>}
           </button>
         )}
@@ -77,11 +80,14 @@ export default function Navbar() {
               <Link to="/profile" className="btn nav-btn">
                 Profile
               </Link>
-              <Link to="/journey" className="btn nav-btn">
-                My Journey
-              </Link>
               <Link to="/donations" className="btn nav-btn">
-                Donations
+                Journey &amp; Donations
+              </Link>
+              <Link to="/leaderboard" className="btn nav-btn">
+                Leaderboard
+              </Link>
+              <Link to="/community" className="btn nav-btn">
+                Community
               </Link>
               <Link to="/logout" className="btn nav-btn">
                 Logout
@@ -95,8 +101,17 @@ export default function Navbar() {
               <Link to="/request-blood" className="btn nav-btn">
                 Request Blood
               </Link>
+              <Link to="/search-donors" className="btn nav-btn">
+                Search Donor
+              </Link>
               <Link to="/my-requests" className="btn nav-btn">
                 My Requests
+              </Link>
+              <Link to="/leaderboard" className="btn nav-btn">
+                Leaderboard
+              </Link>
+              <Link to="/community" className="btn nav-btn">
+                Community
               </Link>
               <Link to="/logout" className="btn nav-btn">
                 Logout

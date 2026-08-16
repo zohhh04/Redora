@@ -279,7 +279,7 @@ export default function PatientTracking() {
 
         {showMap ? (
           <>
-            <LiveMap origin={mapOrigin} destination={destination} height={440} showNavigate={false} onRoute={onRoute} storedRoute={request.route} />
+            <LiveMap origin={mapOrigin} destination={destination} destinationCoords={request.location} height={440} showNavigate={false} onRoute={onRoute} storedRoute={request.route} />
             <div className={`eta-banner ${completed ? 'eta-done' : ''}`}>
               <span className="eta-banner-ico">{tripStarted ? MODES[activeMode].icon : completed ? '🎉' : '⏱'}</span>
               <div className="eta-banner-info">

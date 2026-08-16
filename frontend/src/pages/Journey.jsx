@@ -165,7 +165,9 @@ export default function Journey() {
         <div className="journey-hero-head">
           <div>
             <h2>My Donation Journey</h2>
-            <p className="hint">Every request you accepted, tracked live, and completed</p>
+            <p className="hint">
+              Live status of every request you've taken on — from accepting to donating and beyond
+            </p>
           </div>
           <span className="live-badge live-green">
             <span className="live-dot"></span>
@@ -234,13 +236,16 @@ export default function Journey() {
 
       {!loading && active.length === 0 && completed.length === 0 && inactive.length === 0 && (
         <div className="empty-request-box">
-          <div className="droplet-icon">🩸</div>
-          <p>
-            No journey yet. Browse open blood requests and accept one to start your donation
-            journey.
-          </p>
+          <div className="droplet-icon">🧭</div>
+          <div className="empty-copy">
+            <h3>No active journeys</h3>
+            <p>
+              This is your live tracker. When you accept a blood request, its real-time status and
+              progress will appear here — with a place to Track Live.
+            </p>
+          </div>
           <Link to="/requests" className="btn primary">
-            Browse Requests
+            Browse Open Requests
           </Link>
         </div>
       )}

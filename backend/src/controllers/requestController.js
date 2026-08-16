@@ -4,6 +4,17 @@ const Notification = require("../models/Notification")
 const { scoreDonorForRequest, scoreRequestForDonor, canDonateTo, isEligible, haversineKm } = require("../utils/matchUtils")
 const { stageLabel, TRANSITIONS, certificateCode } = require("../utils/journeyUtils")
 const { sendEmail, emergencyBloodTemplate } = require("../utils/sendEmail")
+const { emitToUser } = require("../socket")
+
+// Tell everyone connected that cares about this request to refresh — the
+// patient who owns it and the currently matched donor (if any).
+const emitRequestUpdate = (request) => {
+  const ids = new Set([request.patient?.toString?.()])
+  if (request.matchedDonor) ids.add(request.matchedDonor.toString())
+  ids.forEach((id) => {
+    if (id) emitToUser(id, "request:update", { requestId: request._id.toString() })
+  })
+}
 
 const DELAY_MS = 30 * 60 * 1000
 
@@ -206,6 +217,8 @@ const createRequest = async (req, res) => {
       notes: notes || "",
     })
 
+    emitRequestUpdate(request)
+
     if (request.location.lat != null && request.location.lng != null) {
       dispatchNearestDonor(request)
     }
@@ -366,6 +379,7 @@ const respondToRequest = async (req, res) => {
         note: `${req.user.name} declined this request`,
       })
       await request.save()
+      emitRequestUpdate(request)
       await markRequestNotifsRead(req.user._id, request._id)
       dispatchNearestDonor(request)
       return res.json({ message: "Request declined", request })
@@ -382,6 +396,7 @@ const respondToRequest = async (req, res) => {
       note: `${req.user.name} accepted this request`,
     })
     await request.save()
+    emitRequestUpdate(request)
     await markRequestNotifsRead(req.user._id, request._id)
     await notifyPatient(
       request,
@@ -416,6 +431,7 @@ const manageDonor = async (req, res) => {
       request.status = "matched"
       pushJourney(request, "matched", req.user, { note: "Patient assigned a donor" })
       await request.save()
+      emitRequestUpdate(request)
       return res.json({ message: "Donor assigned", request })
     }
 
@@ -426,6 +442,7 @@ const manageDonor = async (req, res) => {
       request.status = "accepted"
       pushJourney(request, "accepted", req.user, { note: "Patient confirmed the donor" })
       await request.save()
+      emitRequestUpdate(request)
       return res.json({ message: "Donor confirmed. The journey has begun!", request })
     }
 
@@ -436,6 +453,7 @@ const manageDonor = async (req, res) => {
       request.matchedDonor = null
       request.status = "open"
       await request.save()
+      emitRequestUpdate(request)
       return res.json({ message: "Donor released. Request is open again.", request })
     }
 
@@ -483,6 +501,7 @@ const updateJourney = async (req, res) => {
       }
       request.travelMode = travelMode
       await request.save()
+      emitRequestUpdate(request)
       return res.json({ message: "Travel mode updated", request })
     }
     if (travelMode) {
@@ -513,6 +532,7 @@ const updateJourney = async (req, res) => {
       saveLive()
       saveRoute()
       await request.save()
+      emitRequestUpdate(request)
       return res.json({ message: "Location updated", request })
     }
 
@@ -521,6 +541,7 @@ const updateJourney = async (req, res) => {
       saveLive()
       saveRoute()
       await request.save()
+      emitRequestUpdate(request)
       return res.json({ message: "Location updated", request })
     }
 
@@ -533,6 +554,7 @@ const updateJourney = async (req, res) => {
         note: note || (isPatient ? "Patient cancelled the request" : "Donor cancelled"),
       })
       await request.save()
+      emitRequestUpdate(request)
       return res.json({ message: "Request cancelled", request })
     }
 
@@ -588,6 +610,7 @@ const updateJourney = async (req, res) => {
     }
 
     await request.save()
+    emitRequestUpdate(request)
     res.json({ message: "Journey updated", request })
   } catch (error) {
     res.status(500).json({ message: error.message })

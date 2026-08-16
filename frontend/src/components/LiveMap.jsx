@@ -101,6 +101,7 @@ const destIcon = L.divIcon({
 export default function LiveMap({
   origin,
   destination,
+  destinationCoords = null,
   showRoute = true,
   height = 320,
   showNavigate = true,
@@ -127,6 +128,22 @@ export default function LiveMap({
   }, [])
 
   useEffect(() => {
+    // Prefer the already-verified request coordinates over re-geocoding a
+    // hospital-name string, which can resolve to a same-named place elsewhere.
+    if (
+      destinationCoords &&
+      destinationCoords.lat != null &&
+      destinationCoords.lng != null
+    ) {
+      setStatus('')
+      setDest({
+        lat: destinationCoords.lat,
+        lon: destinationCoords.lng,
+        label: destinationCoords.label || destination,
+      })
+      return
+    }
+
     if (!destination) return
     setStatus('')
     setDest(null)
@@ -154,7 +171,7 @@ export default function LiveMap({
       }
     }
     tryGeocode(0)
-  }, [destination])
+  }, [destination, destinationCoords])
 
   useEffect(() => {
     if (!mapRef.current || !dest) return

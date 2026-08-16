@@ -379,7 +379,7 @@ export default function DonorTracking() {
           </div>
         </div>
 
-        <LiveMap origin={myPosition} destination={destination} height={460} showNavigate={true} onRoute={onRoute} />
+        <LiveMap origin={myPosition} destination={destination} destinationCoords={request.location} height={460} showNavigate={true} onRoute={onRoute} />
         {gpsError && <p className="map-status">{gpsError}</p>}
 
         <div className="eta-banner trip-banner">

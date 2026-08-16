@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api/axios'
+import { useRealtimeRequest } from '../hooks/useRealtime'
 
 const ACTIVE_STATUSES = ['matched', 'accepted', 'traveling', 'arrived', 'donating']
 
@@ -173,10 +174,10 @@ export default function PatientRequests() {
 
   useEffect(() => {
     load()
-    const timer = setInterval(load, 6000)
-    return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useRealtimeRequest(load)
 
   const active = requests.filter((r) => ACTIVE_STATUSES.includes(r.status))
   const open = requests.filter((r) => r.status === 'open')
@@ -199,31 +200,37 @@ export default function PatientRequests() {
           </span>
         </div>
 
-        <div className="journey-hero-stats">
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">🛞</span>
-            <strong>{active.length}</strong>
-            <span>Active</span>
+        <div className="journey-welcome">
+          <div className="journey-welcome-body">
+            <h2>Welcome back 💉</h2>
+            <p>
+              {completed.length === 0 && open.length === 0 && active.length === 0
+                ? 'Create a blood request to find a donor near you, or reach out to AURA to post one by voice.'
+                : open.length > 0
+                  ? `You have ${open.length} request${open.length > 1 ? 's' : ''} looking for a donor — check the matches below.`
+                  : active.length > 0
+                    ? `You have ${active.length} active journey${active.length > 1 ? 's' : ''} in progress. Follow the live status below.`
+                    : 'Your completed requests have made a real difference. Thank you for staying strong.'}
+            </p>
           </div>
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">🔍</span>
-            <strong>{open.length}</strong>
-            <span>Open</span>
+          <div className="journey-welcome-actions">
+            <Link to="/request-blood" className="btn white btn-sm">
+              + New Request
+            </Link>
+            <Link to="/search-donors" className="btn ghost btn-sm">
+              Search Donors
+            </Link>
           </div>
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">🎉</span>
-            <strong>{completed.length}</strong>
-            <span>Completed</span>
-          </div>
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">🩸</span>
-            <strong>{totalUnits}</strong>
-            <span>Units Received</span>
-          </div>
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">❤️</span>
-            <strong>{livesSaved}</strong>
-            <span>Lives Saved</span>
+        </div>
+
+        <div className="journey-tip">
+          <span className="journey-tip-ico">🩸</span>
+          <div className="journey-tip-body">
+            <strong>How to read this page</strong>
+            <p>
+              Open — waiting for a donor, tap &quot;View Matches&quot; to pick one. Active — a donor is
+              on the way, track them live. Completed — your blood was delivered and a certificate is ready.
+            </p>
           </div>
         </div>
       </div>

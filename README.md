@@ -64,6 +64,10 @@ Run:
 npm run dev
 ```
 
+The API now binds to `0.0.0.0` and accepts requests from any origin / IP, so
+phones and computers on your network (or the internet) can reach it. On
+startup it prints both the `Local` and `Network` URLs.
+
 > **OTP in dev mode:** if `EMAIL_USER` / `EMAIL_PASS` are empty, the OTP is
 > printed in the backend terminal (free, no account needed). To send real
 > emails, set them to a free Gmail app password and `npm run dev`.
@@ -76,7 +80,48 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173
+Open http://localhost:5174 (the Vite server is set to `host: true`, so it also
+serves on your machine's LAN IP).
+
+## Accessing from your phone / any device (any IP)
+
+1. Make sure your phone is on the **same Wi-Fi network** as the computer
+   running the servers.
+2. Start the backend then the frontend.
+3. Open the **Network** URL the terminal printed, e.g.
+   `http://192.168.1.10:5174` — it works from any device.
+
+> **Windows firewall:** allow inbound connections on ports `5000` (API) and
+> `5174` (frontend) the first time, or run this once from an **Admin** terminal:
+>
+> ```
+> netsh advfirewall firewall add rule name="Redora 5000" dir=in action=allow protocol=TCP localport=5000
+> netsh advfirewall firewall add rule name="Redora 5174" dir=in action=allow protocol=TCP localport=5174
+> ```
+
+### Voice/microphone (AURA chatbot) needs HTTPS
+
+The browser **blocks the microphone** (Web Speech API) and geolocation on
+plain `http://` LAN addresses — this is a browser security rule, not a bug.
+For voice input to work on your phone you must serve the app over **HTTPS**
+(localhost is exempt). Options, all free:
+
+- **Tunnel** — run `npx localtunnel --port 5174` or `ngrok http 5174` to get an
+  `https://…` URL that works from any device on any network.
+- **Deploy** — host the frontend on Vercel/Netlify and the API on
+  Render/Railway (all free tiers). Both give you HTTPS for free.
+- Without HTTPS, voice chat still works on your own computer via
+  `http://localhost:5174`.
+
+## MongoDB Atlas (free tier)
+
+1. Create a free account at https://www.mongodb.com/atlas and a free **M0**
+   cluster (no credit card needed).
+2. Click **Connect → Drivers** and copy the `mongodb+srv://…` connection string.
+3. In **Network Access** → **Add IP Address** → choose *"Allow access from
+   anywhere"* (`0.0.0.0/0`) so every IP can connect.
+4. Paste it into `backend/.env` as `MONGO_URI`. The code logs whether it
+   connected via Atlas (cloud) or local MongoDB.
 
 ## API Endpoints
 

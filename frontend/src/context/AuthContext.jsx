@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import api from '../api/axios'
+import { resetSocket } from '../api/socket'
 
 const AuthContext = createContext(null)
 
@@ -35,6 +36,7 @@ export function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem('token')
     setUser(null)
+    resetSocket()
   }
 
   const updateUser = (userData) => setUser(userData)

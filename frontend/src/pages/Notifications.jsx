@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
+import { useRealtimeRequest } from '../hooks/useRealtime'
 
 function formatDate(date) {
   if (!date) return '—'
@@ -49,9 +50,9 @@ export default function Notifications() {
 
   useEffect(() => {
     load()
-    const timer = setInterval(load, 5000)
-    return () => clearInterval(timer)
   }, [load])
+
+  useRealtimeRequest(load)
 
   const markRead = async (id) => {
     try {
@@ -67,6 +68,7 @@ export default function Notifications() {
       await api.patch('/notifications/read-all')
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
       setMsg('All notifications marked as read')
+      window.dispatchEvent(new Event('redora:notif-read'))
     } catch {
       setError('Could not update notifications')
     }

@@ -24,7 +24,7 @@ const geocode = async (req, res) => {
 // { lat, lon, label } or null.
 async function geocodeLocation(q) {
   const candidates = buildCandidates(q)
-  const result = await tryCandidates(candidates)
+  const result = await tryCandidates(candidates, significantTokens(q), statesInText(q))
   if (!result) return null
   return { lat: result.lat, lon: result.lon, label: result.label }
 }
@@ -44,13 +44,36 @@ function buildCandidates(q) {
   }
   list.push(parts[parts.length - 1])
 
+  // Try each address segment alone too. A combined (locality + city) query can
+  // return nothing, while the locality alone resolves to a precise point.
+  for (const p of parts) {
+    if (p && p.length > 1) list.push(p)
+  }
+
   return [...new Set(list)].filter((s) => s.length > 1)
 }
 
-async function tryCandidates(candidates) {
+// Pick the most precise result instead of blindly returning the first hit, so
+// a specific locality is preferred over a vague city/state administrative
+// boundary (which would otherwise map to the wrong place).
+function scoreResult(r, sigTokens, states) {
+  const label = normalizeText(r.display_name || "")
+  let score = 0
+  for (const w of sigTokens) if (label.includes(w)) score += 10
+  // A result in a different state than the typed address is almost certainly
+  // the wrong (same-named) place — heavily penalize it.
+  if (states.length && !states.some((s) => label.includes(s))) score -= 50
+  if (r.type === "administrative" || r.class === "boundary" || r.type === "state") score -= 12
+  score += label.split(" ").length
+  return score
+}
+
+async function tryCandidates(candidates, sigTokens = [], states = []) {
+  let best = null
+  let bestScore = -Infinity
   for (const candidate of candidates) {
     try {
-      const url = `${NOMINATIM}?format=json&limit=1&q=${encodeURIComponent(candidate)}`
+      const url = `${NOMINATIM}?format=json&limit=5&countrycodes=in&q=${encodeURIComponent(candidate)}`
       const response = await fetch(url, {
         headers: {
           "User-Agent": "RedoraBloodDonation/1.0",
@@ -60,14 +83,22 @@ async function tryCandidates(candidates) {
       if (!response.ok) continue
 
       const data = await response.json()
-      if (data.length) {
-        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), label: data[0].display_name }
+      if (!data.length) continue
+
+      const hit = data.find((r) => isInIndia(r)) || data[0]
+      if (!hit) continue
+
+      const score = scoreResult(hit, sigTokens, states)
+      if (score > bestScore) {
+        bestScore = score
+        best = hit
       }
     } catch {
       // try the next candidate
     }
   }
-  return null
+  if (!best) return null
+  return { lat: parseFloat(best.lat), lon: parseFloat(best.lon), label: best.display_name }
 }
 
 // GET /api/geo/reverse?lat=...&lng=... - reverse geocode coordinates to a readable address
@@ -114,6 +145,15 @@ function normalizeText(s) {
   return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
 }
 
+// True when a Nominatim result is located in India (defence against the app
+// pinning an identically-named place in another country).
+function isInIndia(r) {
+  const label = normalizeText((r && (r.display_name || r.name)) || "")
+  const addr = (r && r.address) || {}
+  const country = normalizeText(addr.country || addr.country_code || "")
+  return label.includes("india") || country === "india" || country === "in"
+}
+
 // Loose hospital-name match: "Apollo Hospital" matches "Apollo Hospitals", etc.
 function nameMatches(typed, actual) {
   const t = normalizeText(typed)
@@ -138,6 +178,24 @@ function significantTokens(location) {
     .filter((w) => w.length > 3 && !/^\d+$/.test(w) && !GENERIC_LOCATION_WORDS.has(w))
 }
 
+// Indian states/UTs used to keep a match in the same region as the typed
+// address, so a same-named place in another state isn't chosen.
+const INDIAN_STATES = new Set([
+  "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh", "goa",
+  "gujarat", "haryana", "himachal pradesh", "jharkhand", "karnataka", "kerala",
+  "madhya pradesh", "maharashtra", "manipur", "meghalaya", "mizoram", "nagaland",
+  "odisha", "orissa", "punjab", "rajasthan", "sikkim", "tamil nadu", "telangana",
+  "tripura", "uttar pradesh", "uttarakhand", "west bengal", "delhi", "jammu",
+  "kashmir", "ladakh", "andaman", "nicobar", "chandigarh", "dadra", "daman",
+  "diu", "lakshadweep", "puducherry", "kerala", "tamil nadu",
+])
+
+// States explicitly named in the typed address.
+function statesInText(text) {
+  const n = normalizeText(text)
+  return [...INDIAN_STATES].filter((s) => n.includes(s))
+}
+
 // Queries to try: hospital + full location, then hospital + progressively
 // shorter location, then just the hospital name.
 function buildVerifyCandidates(name, location) {
@@ -152,7 +210,7 @@ function buildVerifyCandidates(name, location) {
 }
 
 async function nominatimSearch(q) {
-  const url = `${NOMINATIM}?format=json&limit=10&q=${encodeURIComponent(q)}`
+  const url = `${NOMINATIM}?format=json&limit=10&countrycodes=in&q=${encodeURIComponent(q)}`
   try {
     const response = await fetch(url, {
       headers: {
@@ -161,7 +219,8 @@ async function nominatimSearch(q) {
       },
     })
     if (!response.ok) return []
-    return await response.json()
+    const results = await response.json()
+    return results.filter(isInIndia)
   } catch {
     return []
   }
@@ -177,15 +236,26 @@ const verifyHospital = async (req, res) => {
     if (!name) return res.status(400).json({ message: "Hospital name is required" })
     if (!location) return res.status(400).json({ message: "Location is required" })
 
+    const sig = significantTokens(location)
+
     // Find the hospital by name, retrying with shorter location variants.
-    // A long, exact address often returns nothing from Nominatim.
+    // A long, exact address often returns nothing from Nominatim. Prefer a
+    // result whose mapped address shares a significant token with the typed
+    // location so a same-named hospital in another state isn't picked.
     let found = null
     for (const q of buildVerifyCandidates(name, location)) {
       const results = await nominatimSearch(q)
+      if (!results.length) continue
+
+      const hospitalResults = results.filter(
+        (r) => r.type === "hospital" || (r.class === "amenity" && r.type === "hospital")
+      )
+      const pool = hospitalResults.length ? hospitalResults : results
       const hit =
-        results.find((r) => r.type === "hospital") ||
-        results.find((r) => r.class === "amenity" && r.type === "hospital") ||
-        results.find((r) => nameMatches(name, r.display_name || ""))
+        pool.find((r) => sig.some((w) => normalizeText(r.display_name || "").includes(w))) ||
+        pool.find((r) => nameMatches(name, r.display_name || "")) ||
+        pool[0]
+
       if (hit) {
         found = { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon), label: hit.display_name }
         break
@@ -197,14 +267,33 @@ const verifyHospital = async (req, res) => {
     // Confirm the location: any significant locality token in the typed
     // address appearing in the hospital's mapped address.
     const label = normalizeText(found.label)
-    const sig = significantTokens(location)
     const tokenMatch = sig.some((w) => label.includes(w))
 
     // Fallback: geocode the typed location and measure distance to the hospital.
-    let distanceKm = null
+    let geo = null
     if (!tokenMatch) {
-      const geo = await geocodeLocation(location)
-      if (geo) distanceKm = Math.round(haversineKm(found.lat, found.lon, geo.lat, geo.lon) * 10) / 10
+      geo = await geocodeLocation(location)
+    }
+    const distanceKm =
+      geo != null
+        ? Math.round(haversineKm(found.lat, found.lon, geo.lat, geo.lon) * 10) / 10
+        : null
+
+    // If the named hospital is nowhere near the typed location (e.g. an "AB
+    // Hospital" in another state), anchor the pin to the typed location so the
+    // map points at the correct city instead of the far-away same-named one.
+    if (geo && distanceKm != null && distanceKm > 35) {
+      return res.json({
+        verified: true,
+        reason: "location",
+        distanceKm,
+        match: {
+          name: geo.label,
+          lat: geo.lat,
+          lon: geo.lon,
+          label: geo.label,
+        },
+      })
     }
 
     const verified = tokenMatch || (distanceKm != null && distanceKm <= 35)

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios'
+import LocationPicker from '../components/LocationPicker'
 
 const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
@@ -21,8 +22,42 @@ export default function RequestBlood() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [verify, setVerify] = useState({ status: 'idle', match: null, message: '' })
+  const [picked, setPicked] = useState(null)
+  const [auto, setAuto] = useState({ status: 'idle', match: null })
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value })
+    if (e.target.name === 'location') {
+      setPicked(null)
+      setVerify({ status: 'idle', match: null, message: '' })
+      setAuto({ status: 'idle', match: null })
+    }
+  }
+
+  // Auto-map the typed location as the user types, so the pin appears without
+  // having to run hospital verification first.
+  useEffect(() => {
+    const location = form.location.trim()
+    if (!location) {
+      setAuto({ status: 'idle', match: null })
+      return
+    }
+    let active = true
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/geo/geocode', { params: { q: location } })
+        if (!active) return
+        if (data.result) setAuto({ status: 'ok', match: data.result })
+        else setAuto({ status: 'notfound', match: null })
+      } catch {
+        if (active) setAuto({ status: 'error', match: null })
+      }
+    }, 500)
+    return () => {
+      active = false
+      clearTimeout(t)
+    }
+  }, [form.location])
 
   const verifyHospital = async () => {
     setError('')
@@ -37,7 +72,10 @@ export default function RequestBlood() {
         setVerify({
           status: 'verified',
           match: data.match,
-          message: `✓ "${form.hospital}" confirmed at this location.`,
+          message:
+            data.reason === 'location'
+              ? `✓ Using your provided location (${data.match.label}).`
+              : `✓ "${form.hospital}" confirmed at this location.`,
         })
       } else if (data.reason === 'location-mismatch') {
         setVerify({
@@ -66,15 +104,16 @@ export default function RequestBlood() {
     setError('')
     if (!form.bloodGroup) return setError('Please select a blood group')
     if (!form.location.trim()) return setError('Please enter the location of the patient')
-    if (verify.status !== 'verified') {
-      return setError('Please verify the hospital & location first using the Verify button.')
+    if (!picked && !verify.match && !auto.match) {
+      return setError('Please set the location on the map first (a pin will appear once you type a location).')
     }
     setSubmitting(true)
     try {
+      const source = picked || verify.match || auto.match
       const coords = {
-        lat: verify.match.lat,
-        lng: verify.match.lon,
-        label: verify.match.label,
+        lat: source.lat,
+        lng: source.lng,
+        label: source.label,
       }
 
       const { data } = await api.post('/requests', { ...form, location: coords })
@@ -167,6 +206,26 @@ export default function RequestBlood() {
           {verify.status === 'mismatch' && <p className="error">{verify.message}</p>}
           {verify.status === 'notfound' && <p className="error">{verify.message}</p>}
           {verify.status === 'error' && <p className="error">{verify.message}</p>}
+          {!verify.match && auto.status === 'notfound' && (
+            <p className="error">We couldn't map "{form.location}". Try a broader area, e.g. city or locality.</p>
+          )}
+          {!verify.match && auto.status === 'error' && (
+            <p className="error">The map service couldn't be reached. Check your connection and try again.</p>
+          )}
+
+          {(picked || verify.match || auto.match) && (
+            <>
+              <p className="hint">
+                📍 Pin placed for "{form.location}". Drag or click the map to fine-tune, then confirm.
+              </p>
+              <LocationPicker
+                start={picked || verify.match || auto.match}
+                onPick={setPicked}
+                height={320}
+              />
+              {picked && <p className="success">📍 Pin set to your exact spot.</p>}
+            </>
+          )}
         </div>
 
         <div className="req-section">

@@ -5,6 +5,8 @@ import { ThemeProvider } from './context/ThemeContext'
 import api from './api/axios'
 import Navbar from './components/Navbar'
 import NotificationPopup from './components/NotificationPopup'
+import AuraChatbot from './components/AuraChatbot'
+import ErrorBoundary from './components/ErrorBoundary'
 import Home from './pages/Home'
 import Register from './pages/Register'
 import VerifyOtp from './pages/VerifyOtp'
@@ -18,14 +20,16 @@ import Requests from './pages/Requests'
 import Matches from './pages/Matches'
 import RequestBlood from './pages/RequestBlood'
 import NearbyDonors from './pages/NearbyDonors'
+import SearchDonors from './pages/SearchDonors'
 import Logout from './pages/Logout'
 import PatientDashboard from './pages/PatientDashboard'
 import PatientRequests from './pages/PatientRequests'
-import Journey from './pages/Journey'
 import DonorTracking from './pages/DonorTracking'
 import PatientTracking from './pages/PatientTracking'
 import Certificate from './pages/Certificate'
 import Notifications from './pages/Notifications'
+import Leaderboard from './pages/Leaderboard'
+import Community from './pages/Community'
 
 // If we have a token but the auth check failed, don't blindly bounce to login.
 // Only an actual invalid/absent token redirects to /login. Transient/network
@@ -127,11 +131,18 @@ function NearbyDonorsRoute() {
   return <NearbyDonors />
 }
 
+function SearchDonorsRoute() {
+  const { user } = useAuth()
+  if (!user) return null
+  if (user.role !== 'donor' && user.role !== 'patient') return <Navigate to="/dashboard" replace />
+  return <SearchDonors />
+}
+
 function JourneyRoute() {
   const { user } = useAuth()
   if (!user) return null
   if (user.role !== 'donor') return <Navigate to="/dashboard" replace />
-  return <Journey />
+  return <Donations />
 }
 
 function CertificateRoute() {
@@ -147,6 +158,18 @@ function NotificationsRoute() {
   if (user.role !== 'donor' && user.role !== 'patient') return <Navigate to="/dashboard" replace />
   return <Notifications />
 }
+
+function OpenRoute(Component) {
+  return function RoleRoute() {
+    const { user } = useAuth()
+    if (!user) return null
+    if (user.role !== 'donor' && user.role !== 'patient') return <Navigate to="/dashboard" replace />
+    return <Component />
+  }
+}
+
+const LeaderboardRoute = OpenRoute(Leaderboard)
+const CommunityRoute = OpenRoute(Community)
 
 function PatientRequestsRoute() {
   const { user } = useAuth()
@@ -218,6 +241,9 @@ export default function App() {
       <AuthProvider>
         <Navbar />
         <NotificationPopup />
+        <ErrorBoundary>
+          <AuraChatbot />
+        </ErrorBoundary>
         <PatientJourneyWatcher />
         <div className="app">
           <Routes>
@@ -285,6 +311,14 @@ export default function App() {
               }
             />
             <Route
+              path="/search-donors"
+              element={
+                <Protected>
+                  <SearchDonorsRoute />
+                </Protected>
+              }
+            />
+            <Route
               path="/journey"
               element={
                 <Protected>
@@ -329,6 +363,22 @@ export default function App() {
               element={
                 <Protected>
                   <NotificationsRoute />
+                </Protected>
+              }
+            />
+            <Route
+              path="/leaderboard"
+              element={
+                <Protected>
+                  <LeaderboardRoute />
+                </Protected>
+              }
+            />
+            <Route
+              path="/community"
+              element={
+                <Protected>
+                  <CommunityRoute />
                 </Protected>
               }
             />
