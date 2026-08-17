@@ -210,7 +210,7 @@ const createRequest = async (req, res) => {
       area: area || "",
       location: {
         lat: location?.lat != null ? location.lat : null,
-        lng: location?.lng != null ? location.lng : null,
+        lng: location?.lng ?? location?.lon ?? null,
         label: location?.label || "",
       },
       urgency: urgency === "emergency" ? "emergency" : "normal",

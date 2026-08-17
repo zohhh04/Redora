@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../api/axios'
-import LocationPicker from '../components/LocationPicker'
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 
 const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
@@ -22,13 +21,11 @@ export default function RequestBlood() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [verify, setVerify] = useState({ status: 'idle', match: null, message: '' })
-  const [picked, setPicked] = useState(null)
   const [auto, setAuto] = useState({ status: 'idle', match: null })
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
     if (e.target.name === 'location') {
-      setPicked(null)
       setVerify({ status: 'idle', match: null, message: '' })
       setAuto({ status: 'idle', match: null })
     }
@@ -104,15 +101,15 @@ export default function RequestBlood() {
     setError('')
     if (!form.bloodGroup) return setError('Please select a blood group')
     if (!form.location.trim()) return setError('Please enter the location of the patient')
-    if (!picked && !verify.match && !auto.match) {
-      return setError('Please set the location on the map first (a pin will appear once you type a location).')
+    const source = verify.match || auto.match
+    if (!source || source.lat == null || (source.lng == null && source.lon == null)) {
+      return setError('Please verify the hospital and location before posting the request.')
     }
     setSubmitting(true)
     try {
-      const source = picked || verify.match || auto.match
       const coords = {
         lat: source.lat,
-        lng: source.lng,
+        lng: source.lng ?? source.lon,
         label: source.label,
       }
 
@@ -131,7 +128,7 @@ export default function RequestBlood() {
         <span className="request-hero-badge">🩸</span>
         <div>
           <h2>New Blood Request</h2>
-          <p className="hint">Tell donors what you need — it only takes a minute.</p>
+          <p className="hint">Post what you need & find a donor</p>
         </div>
       </div>
 
@@ -146,7 +143,7 @@ export default function RequestBlood() {
               <span>Patient Name</span>
               <input
                 name="patientName"
-                placeholder="Whom is this blood needed for?"
+                placeholder="Name"
                 value={form.patientName}
                 onChange={handleChange}
               />
@@ -156,7 +153,7 @@ export default function RequestBlood() {
               <input
                 name="phone"
                 type="tel"
-                placeholder="Contact number for the donor to call"
+                placeholder="Donor's contact"
                 value={form.phone}
                 onChange={handleChange}
               />
@@ -192,7 +189,7 @@ export default function RequestBlood() {
           </label>
           <label className="field">
             <span>Location</span>
-            <input name="location" placeholder="e.g. Hyderabad, Kukatpally" value={form.location} onChange={handleChange} />
+            <input name="location" placeholder="City, area" value={form.location} onChange={handleChange} />
           </label>
           <button
             type="button"
@@ -207,25 +204,12 @@ export default function RequestBlood() {
           {verify.status === 'notfound' && <p className="error">{verify.message}</p>}
           {verify.status === 'error' && <p className="error">{verify.message}</p>}
           {!verify.match && auto.status === 'notfound' && (
-            <p className="error">We couldn't map "{form.location}". Try a broader area, e.g. city or locality.</p>
+            <p className="error">We couldn't verify "{form.location}". Try a broader area, e.g. city or locality.</p>
           )}
           {!verify.match && auto.status === 'error' && (
-            <p className="error">The map service couldn't be reached. Check your connection and try again.</p>
+            <p className="error">The location verification service couldn't be reached. Check your connection and try again.</p>
           )}
-
-          {(picked || verify.match || auto.match) && (
-            <>
-              <p className="hint">
-                📍 Pin placed for "{form.location}". Drag or click the map to fine-tune, then confirm.
-              </p>
-              <LocationPicker
-                start={picked || verify.match || auto.match}
-                onPick={setPicked}
-                height={320}
-              />
-              {picked && <p className="success">📍 Pin set to your exact spot.</p>}
-            </>
-          )}
+          {verify.status === 'verified' && <div className="map-preview-hidden" aria-hidden="true" />}
         </div>
 
         <div className="req-section">
@@ -245,7 +229,7 @@ export default function RequestBlood() {
             <textarea
               name="notes"
               rows="3"
-              placeholder="Any details for donors"
+              placeholder="Any details (optional)"
               value={form.notes}
               onChange={handleChange}
             />

@@ -49,13 +49,7 @@ export default function Navbar() {
         Redora
       </Link>
 
-      {onHome && (
-        <div className="nav-links">
-          <a href="#blood-types">Blood Types</a>
-          <a href="#how-it-works">How It Works</a>
-          <a href="#impact">Why Donate</a>
-        </div>
-      )}
+      {onHome && <div className="nav-links"></div>}
 
       <div className="nav-actions">
         <ThemeToggle />

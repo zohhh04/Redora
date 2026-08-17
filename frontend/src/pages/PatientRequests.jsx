@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import api from '../api/axios'
-import { useRealtimeRequest } from '../hooks/useRealtime'
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import api from '../api/axios';
+import { useRealtimeRequest } from '../hooks/useRealtime';
 
 const ACTIVE_STATUSES = ['matched', 'accepted', 'traveling', 'arrived', 'donating']
 
@@ -198,29 +198,6 @@ export default function PatientRequests() {
             <span className="live-dot"></span>
             Live · synced {lastSync ? formatTime(lastSync) : '…'}
           </span>
-        </div>
-
-        <div className="journey-welcome">
-          <div className="journey-welcome-body">
-            <h2>Welcome back 💉</h2>
-            <p>
-              {completed.length === 0 && open.length === 0 && active.length === 0
-                ? 'Create a blood request to find a donor near you, or reach out to AURA to post one by voice.'
-                : open.length > 0
-                  ? `You have ${open.length} request${open.length > 1 ? 's' : ''} looking for a donor — check the matches below.`
-                  : active.length > 0
-                    ? `You have ${active.length} active journey${active.length > 1 ? 's' : ''} in progress. Follow the live status below.`
-                    : 'Your completed requests have made a real difference. Thank you for staying strong.'}
-            </p>
-          </div>
-          <div className="journey-welcome-actions">
-            <Link to="/request-blood" className="btn white btn-sm">
-              + New Request
-            </Link>
-            <Link to="/search-donors" className="btn ghost btn-sm">
-              Search Donors
-            </Link>
-          </div>
         </div>
 
         <div className="journey-tip">

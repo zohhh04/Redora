@@ -236,57 +236,14 @@ const verifyHospital = async (req, res) => {
     if (!name) return res.status(400).json({ message: "Hospital name is required" })
     if (!location) return res.status(400).json({ message: "Location is required" })
 
-    const sig = significantTokens(location)
-
-    // Find the hospital by name, retrying with shorter location variants.
-    // A long, exact address often returns nothing from Nominatim. Prefer a
-    // result whose mapped address shares a significant token with the typed
-    // location so a same-named hospital in another state isn't picked.
-    let found = null
-    for (const q of buildVerifyCandidates(name, location)) {
-      const results = await nominatimSearch(q)
-      if (!results.length) continue
-
-      const hospitalResults = results.filter(
-        (r) => r.type === "hospital" || (r.class === "amenity" && r.type === "hospital")
-      )
-      const pool = hospitalResults.length ? hospitalResults : results
-      const hit =
-        pool.find((r) => sig.some((w) => normalizeText(r.display_name || "").includes(w))) ||
-        pool.find((r) => nameMatches(name, r.display_name || "")) ||
-        pool[0]
-
-      if (hit) {
-        found = { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon), label: hit.display_name }
-        break
-      }
-    }
-
-    if (!found) return res.json({ verified: false, reason: "not-found" })
-
-    // Confirm the location: any significant locality token in the typed
-    // address appearing in the hospital's mapped address.
-    const label = normalizeText(found.label)
-    const tokenMatch = sig.some((w) => label.includes(w))
-
-    // Fallback: geocode the typed location and measure distance to the hospital.
-    let geo = null
-    if (!tokenMatch) {
-      geo = await geocodeLocation(location)
-    }
-    const distanceKm =
-      geo != null
-        ? Math.round(haversineKm(found.lat, found.lon, geo.lat, geo.lon) * 10) / 10
-        : null
-
-    // If the named hospital is nowhere near the typed location (e.g. an "AB
-    // Hospital" in another state), anchor the pin to the typed location so the
-    // map points at the correct city instead of the far-away same-named one.
-    if (geo && distanceKm != null && distanceKm > 35) {
+    // Try geocoding the full hospital address first (name + location combined)
+    const fullAddress = `${name}, ${location}`
+    const geo = await geocodeLocation(fullAddress)
+    
+    if (geo) {
       return res.json({
         verified: true,
-        reason: "location",
-        distanceKm,
+        reason: "verified",
         match: {
           name: geo.label,
           lat: geo.lat,
@@ -296,18 +253,22 @@ const verifyHospital = async (req, res) => {
       })
     }
 
-    const verified = tokenMatch || (distanceKm != null && distanceKm <= 35)
-    return res.json({
-      verified,
-      reason: verified ? "verified" : "location-mismatch",
-      distanceKm,
-      match: {
-        name: found.label,
-        lat: found.lat,
-        lon: found.lon,
-        label: found.label,
-      },
-    })
+    // Fallback: if full address doesn't geocode, try just the location
+    const locationGeo = await geocodeLocation(location)
+    if (locationGeo) {
+      return res.json({
+        verified: true,
+        reason: "location",
+        match: {
+          name: locationGeo.label,
+          lat: locationGeo.lat,
+          lon: locationGeo.lon,
+          label: locationGeo.label,
+        },
+      })
+    }
+
+    return res.json({ verified: false, reason: "not-found" })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -347,7 +308,9 @@ const nearbyDonors = async (req, res) => {
     if (requestId) {
       const request = await BloodRequest.findById(requestId)
       if (request) {
-        if (request.matchedDonor) excluded.add(request.matchedDonor.toString())
+        // Keep the currently matched donor visible on the map when they are in
+        // the search radius, so patients can see the real pin instead of a
+        // silent notification-only flow.
         request.declinedDonors.forEach((id) => excluded.add(id.toString()))
       }
     }

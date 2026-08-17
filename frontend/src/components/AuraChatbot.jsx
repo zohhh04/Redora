@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import api from '../api/axios'
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
@@ -89,8 +89,59 @@ const KB = [
   },
 ]
 
+const GENERAL_ANSWERS = [
+  {
+    test: /(what is redora|what is this app|what do you do|who are you|what is aura)/i,
+    text: 'Redora is a blood-donation platform that connects patients who need blood with verified donors nearby. It helps with blood requests, donor matching, live tracking, notifications, and donation certificates.',
+    suggestions: ['How does matching work?', 'Request blood', 'Am I eligible to donate?'],
+  },
+  {
+    test: /(how do i request blood|how to request blood|need blood|create blood request|post a request|new blood request)/i,
+    text: 'To request blood, open the New Blood Request page, enter the patient details, blood group, hospital, location, urgency, and notes, then post the request. AURA can also guide you step by step if you say “Request blood”.',
+    suggestions: ['Request blood', 'How does matching work?', 'What can you do?'],
+  },
+  {
+    test: /(who can donate|am i eligible|can i donate|eligibility|when can i donate again|donor eligibility)/i,
+    text: 'Most healthy adults who meet the donor criteria can donate. Redora checks your last donation date, blood group compatibility, availability, and location before showing a request. A common rule is a 2-month gap between donations, and the app warns you if you are not eligible yet.',
+    suggestions: ['How does matching work?', 'How do I donate?', 'Request blood'],
+  },
+  {
+    test: /(how does matching work|how are donors chosen|match score|why am i matched|ai match)/i,
+    text: 'Redora ranks donors by blood group compatibility, distance to the hospital, travel time, donation eligibility, and availability. The nearest eligible and compatible donor is prioritized, especially for emergency requests.',
+    suggestions: ['How do I donate?', 'Request blood', 'What is live tracking?'],
+  },
+  {
+    test: /(what is live tracking|where is the donor|track donor|journey|status)/i,
+    text: 'After a donor accepts, the app shows the journey from matched to traveling to arrived and completed. You can see ETA, route updates, and live donor location on the map during the trip.',
+    suggestions: ['How does matching work?', 'What are certificates?', 'Request blood'],
+  },
+  {
+    test: /(what are certificates|certificate|donation proof)/i,
+    text: 'Once a donation is completed, the app generates a donation certificate with a verification code and the key details of the donation. It is available from your Journey & Donations page.',
+    suggestions: ['How does matching work?', 'What is live tracking?'],
+  },
+  {
+    test: /(where do i find|where can i go|dashboard|notifications|profile|my requests|my requests page)/i,
+    text: 'Use the top navigation to open your dashboard, requests, notifications, profile, and donor pages. Patients can view their request list and donor journey; donors can view nearby requests and their donation status.',
+    suggestions: ['Request blood', 'What can you do?', 'How do I donate?'],
+  },
+  {
+    test: /(how can i contact|message donor|chat with donor|call donor|contact the donor)/i,
+    text: 'Redora includes in-app messaging and calls between the patient and the matched donor, so important coordination can happen without sharing personal contact details outside the platform.',
+    suggestions: ['Request blood', 'What is live tracking?'],
+  },
+  {
+    test: /(how do i donate|become donor|register as donor|i want to donate)/i,
+    text: 'To donate, sign up as a donor, complete your profile with blood group and location, and wait for nearby compatible requests. If you are eligible, you can accept one and track the patient journey live.',
+    suggestions: ['Am I eligible to donate?', 'How does matching work?', 'What can you do?'],
+  },
+]
+
 function findReply(text) {
   const t = text.toLowerCase()
+  const general = GENERAL_ANSWERS.find((entry) => entry.test.test(t))
+  if (general) return general
+
   for (const entry of KB) {
     if (entry.keys.some((k) => t.includes(k))) return entry
   }
@@ -98,8 +149,8 @@ function findReply(text) {
 }
 
 const FALLBACK = [
-  "I'm not 100% sure about that one. 🤔 Try asking about donor eligibility, how matching works, live tracking, certificates, or say \u201cRequest blood\u201d to post a need.",
-  'Hmm, I didn\u2019t catch that. You can ask me how to donate, how matching works, about live tracking, or request blood. What would you like to do?',
+  "I can help with Redora features like blood requests, donor eligibility, matching, tracking, and certificates. Try asking something like ‘How does matching work?’ or ‘Request blood’.",
+  'I can answer questions about donating, eligibility, live tracking, requests, and notifications. Ask me about the app or say “Request blood” to get started.',
 ]
 
 /* ------------------------------------------------------------------ *
@@ -124,15 +175,25 @@ function normalizeWizardValue(key, value) {
 }
 
 function speak(text, { rate = 1 } = {}) {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return
-  window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.rate = rate
-  u.pitch = 1
-  const voices = window.speechSynthesis.getVoices()
-  const voice = voices.find((v) => /en(-|_)?(US|GB|IN)/i.test(v.lang)) || voices.find((v) => v.lang?.startsWith('en'))
-  if (voice) u.voice = voice
-  window.speechSynthesis.speak(u)
+  if (typeof window === 'undefined') return
+  const synth = window.speechSynthesis
+  const ctor = window.SpeechSynthesisUtterance
+  if (!synth || !ctor) return
+
+  try {
+    synth.cancel()
+    const u = new ctor(text)
+    u.rate = rate
+    u.pitch = 1
+
+    const voices = typeof synth.getVoices === 'function' ? synth.getVoices() : []
+    const voice = voices.find((v) => /en(-|_)?(US|GB|IN)/i.test(v.lang)) || voices.find((v) => v.lang?.startsWith('en'))
+    if (voice) u.voice = voice
+
+    synth.speak(u)
+  } catch {
+    // Ignore unsupported speech setups so the chatbot remains usable without crashing.
+  }
 }
 
 export default function AuraChatbot() {
@@ -264,14 +325,24 @@ export default function AuraChatbot() {
     const { patientName, phone, bloodGroup, units, hospital, urgency, notes } = w.collected
     setTyping(true)
     try {
-      const locationQuery = w.locationText || ''
+      const locationQuery = w.locationText || w.collected.location || ''
       let coords = w.liveCoords
-      if (!coords && hospital) {
+      if (!coords && hospital && locationQuery) {
         const { data } = await api.get('/geo/verify-hospital', {
           params: { name: hospital, location: locationQuery },
         })
         if (data.verified && data.match) {
           coords = { lat: data.match.lat, lng: data.match.lon, label: data.match.label }
+        }
+      }
+      if (!coords && hospital && locationQuery) {
+        try {
+          const { data } = await api.get('/geo/geocode', { params: { q: locationQuery } })
+          if (data.result) {
+            coords = { lat: data.result.lat, lng: data.result.lon, label: data.result.label }
+          }
+        } catch {
+          // ignore and keep the validation error below
         }
       }
       if (!coords || coords.lat == null) {
@@ -307,56 +378,70 @@ export default function AuraChatbot() {
   async function handleSend(raw) {
     const text = (raw ?? '').trim()
     if (!text) return
-    setInput('')
-    pushUser(text)
 
-    /* If a wizard is active, treat this as the answer to the current question. */
-    if (wizard) {
-      const current = WIZARD[wizard.step]
-      const isAffirmativeLocation = current.key === 'location' && /yes|that'?s right|correct/i.test(text)
-      if (isAffirmativeLocation && wizard.liveCoords) {
-        await proceedWizard()
-        return
-      }
-      if (/^yes$/i.test(text.trim()) && wizard.step === 0) {
-        await proceedWizard()
-        return
-      }
-      const err = current.validate(text)
-      if (err) {
-        pushBot(err)
-        return
-      }
-      const value = normalizeWizardValue(current.key, text)
-      setWizard((w) => ({ ...w, collected: { ...w.collected, [current.key]: value } }))
-      await proceedWizard()
-      return
-    }
+    try {
+      setInput('')
+      pushUser(text)
 
-    setTyping(true)
-    /* Allow re-entering the wizard from any message. */
-    if (/request blood|need blood|post request|start a new request|start$|yes$|create request/i.test(text)) {
-      startWizard()
-      setTyping(false)
-      return
-    }
-
-    const entry = findReply(text)
-    setTimeout(() => {
-      let suggestions = []
-      if (entry) {
-        suggestions = entry.suggestions || []
-        pushBot(entry.text, suggestions)
-        if (entry.startWizard) {
-          setTimeout(() => startWizard(), 400)
+      /* If a wizard is active, treat this as the answer to the current question. */
+      if (wizard) {
+        const current = WIZARD[wizard.step]
+        const isAffirmativeLocation = current.key === 'location' && /yes|that'?s right|correct/i.test(text)
+        if (isAffirmativeLocation && wizard.liveCoords) {
+          await proceedWizard()
+          return
         }
-      } else {
-        const fb = FALLBACK[Math.floor(Math.random() * FALLBACK.length)]
-        suggestions = ['What can you do?', 'Request blood', 'How does matching work?']
-        pushBot(fb, suggestions)
+        if (/^yes$/i.test(text.trim()) && wizard.step === 0) {
+          await proceedWizard()
+          return
+        }
+        const err = current.validate(text)
+        if (err) {
+          pushBot(err)
+          return
+        }
+        const value = normalizeWizardValue(current.key, text)
+        setWizard((w) => ({
+          ...w,
+          collected: { ...w.collected, [current.key]: value },
+          locationText: current.key === 'location' ? value : w.locationText,
+        }))
+        await proceedWizard()
+        return
       }
+
+      setTyping(true)
+      /* Allow re-entering the wizard from any message. */
+      if (/request blood|need blood|post request|start a new request|start$|yes$|create request/i.test(text)) {
+        startWizard()
+        setTyping(false)
+        return
+      }
+
+      const entry = findReply(text)
+      setTimeout(() => {
+        try {
+          let suggestions = []
+          if (entry) {
+            suggestions = entry.suggestions || []
+            pushBot(entry.text, suggestions)
+            if (entry.startWizard) {
+              setTimeout(() => startWizard(), 400)
+            }
+          } else {
+            const fb = FALLBACK[Math.floor(Math.random() * FALLBACK.length)]
+            suggestions = ['What can you do?', 'Request blood', 'How does matching work?']
+            pushBot(fb, suggestions)
+          }
+        } finally {
+          setTyping(false)
+        }
+      }, 350)
+    } catch (error) {
+      console.error('[AuraChatbot] send failed:', error)
       setTyping(false)
-    }, 350)
+      pushBot('I hit a temporary issue while answering. Please try again — the app is still fine and I can help with donor requests, eligibility, matching, and live tracking.')
+    }
   }
 
   function startWizard() {
@@ -405,14 +490,20 @@ export default function AuraChatbot() {
   async function handleSendFinal(text) {
     const trimmed = (text ?? '').trim()
     if (!trimmed) return
-    if (wizard && wizard.step >= WIZARD.length) {
-      const handled = await handleWizardFinal(trimmed)
-      if (handled) {
-        setInput('')
-        return
+    try {
+      if (wizard && wizard.step >= WIZARD.length) {
+        const handled = await handleWizardFinal(trimmed)
+        if (handled) {
+          setInput('')
+          return
+        }
       }
+      await handleSend(trimmed)
+    } catch (error) {
+      console.error('[AuraChatbot] send final failed:', error)
+      setTyping(false)
+      pushBot('I hit a temporary issue while answering. Please try again — the app is still fine and I can help with donor requests, eligibility, matching, and live tracking.')
     }
-    await handleSend(trimmed)
   }
 
   /* --- suggested chip click --- */

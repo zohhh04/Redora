@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import api from '../api/axios'
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MONTHS_MS = 2 * 30 * 24 * 60 * 60 * 1000
@@ -159,9 +159,9 @@ export default function DonorDashboard() {
       <div className="dash-hero">
         <div className="dash-hero-avatar">{initials(user?.name)}</div>
         <div className="dash-hero-body">
-          <h2>Welcome back, {user?.name}</h2>
+          <h2>Donor Dashboard</h2>
           <p className="dash-hero-sub">
-            Donor {user?.city ? `· ${user.city}${user.area ? `, ${user.area}` : ''}` : ''}
+            {user?.city ? `${user.city}${user.area ? `, ${user.area}` : ''}` : 'Your donor overview'}
           </p>
           <div className="dash-hero-tags">
             <span className={`dash-chip ${isAvailable ? 'chip-green' : 'chip-red'}`}>

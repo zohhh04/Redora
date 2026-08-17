@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import L from 'leaflet'
-import api from '../api/axios'
+import L from 'leaflet';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import api from '../api/axios';
 
 const INITIAL_RADIUS_KM = 5
 const EXPAND_STEP_KM = 5
@@ -66,9 +66,16 @@ export default function NearbyDonors() {
         setRequest(data.request)
         setBloodGroup(data.request.bloodGroup)
 
-        const loc = data.request.location
+        const rawLoc = data.request.location
+        const loc = rawLoc && {
+          lat: rawLoc.lat ?? rawLoc.latitude,
+          lng: rawLoc.lng ?? rawLoc.lon ?? rawLoc.longitude,
+          label: rawLoc.label || data.request.hospital || rawLoc.name || '',
+        }
+
         if (!loc || loc.lat == null || loc.lng == null) {
-          setError('This request does not have a map location.')
+          setCenter(null)
+          setError('')
           return
         }
         setCenter({ lat: loc.lat, lng: loc.lng })

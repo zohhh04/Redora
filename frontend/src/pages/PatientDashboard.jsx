@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import api from '../api/axios'
-import { useRealtimeRequest } from '../hooks/useRealtime'
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
+import { useRealtimeRequest } from '../hooks/useRealtime';
 
 function formatDate(date) {
   if (!date) return '—'
@@ -212,15 +212,9 @@ export default function PatientDashboard() {
 
       <div className="journey-welcome">
         <div className="journey-welcome-body">
-          <h2>Welcome back, {user?.name?.split(' ')[0] || 'Patient'} 💉</h2>
+          <h2>Need blood fast?</h2>
           <p className="hint">
-            {active.length > 0
-              ? 'You have active journeys in progress — keep an eye on them below.'
-              : open.length > 0
-                ? 'Some requests are still looking for a donor. Check their matches below.'
-                : completed.length > 0
-                  ? 'Great work — your completed requests are making a real difference.'
-                  : 'Create a blood request below to find a donor near you.'}
+            Say “Request blood” to AURA in the bottom-right bubble — it will post your request by voice and ask a few quick questions.
           </p>
         </div>
         <div className="journey-welcome-actions">
@@ -230,16 +224,6 @@ export default function PatientDashboard() {
           <Link to="/my-requests" className="btn ghost btn-sm">
             My Requests
           </Link>
-        </div>
-      </div>
-
-      <div className="journey-tip">
-        <span className="journey-tip-ico">💡</span>
-        <div className="journey-tip-body">
-          <strong>Need blood fast?</strong>
-          <p>
-            Say &quot;Request blood&quot; to AURA — it will post a request for you by voice.
-          </p>
         </div>
       </div>
 

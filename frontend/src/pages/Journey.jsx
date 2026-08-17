@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import api from '../api/axios'
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import api from '../api/axios';
 
 const ACTIVE_STATUSES = ['matched', 'accepted', 'traveling', 'arrived', 'donating']
 const COMPLETED_STATUSES = ['completed']
@@ -175,28 +175,6 @@ export default function Journey() {
           </span>
         </div>
 
-        <div className="journey-hero-stats">
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">🛞</span>
-            <strong>{active.length}</strong>
-            <span>Active Journeys</span>
-          </div>
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">✅</span>
-            <strong>{completed.length}</strong>
-            <span>Completed</span>
-          </div>
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">🏅</span>
-            <strong>{certCount}</strong>
-            <span>Certificates</span>
-          </div>
-          <div className="journey-hero-stat">
-            <span className="journey-hero-stat-ico">❤️</span>
-            <strong>{livesSaved}</strong>
-            <span>Lives Saved</span>
-          </div>
-        </div>
       </div>
 
       {livesSaved > 0 && (

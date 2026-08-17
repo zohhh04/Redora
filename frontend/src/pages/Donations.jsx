@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import api from '../api/axios'
-import { useRealtimeRequest } from '../hooks/useRealtime'
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
+import { useRealtimeRequest } from '../hooks/useRealtime';
 
 const ELIGIBLE_MS = 60 * 24 * 60 * 60 * 1000
 const ACTIVE_STATUSES = ['matched', 'accepted', 'traveling', 'arrived', 'donating']
@@ -253,32 +253,12 @@ export default function Donations() {
           </span>
         </div>
 
-        <div className="journey-welcome">
-          <div className="journey-welcome-body">
-            <h2>Welcome, {user?.name?.split(' ')[0] || 'Hero'} 🩸</h2>
-            <p>
-              {donations.length === 0
-                ? 'Your blood saves lives. Accept a request below and become someone\u2019s hero.'
-                : `${totalUnits} unit${totalUnits > 1 ? 's' : ''} donated · ${livesSaved} lives touched. Keep the kindness going.`}
-            </p>
-          </div>
-          <div className="journey-welcome-actions">
-            <Link to="/requests" className="btn white btn-sm">
-              Find a Request
-            </Link>
-            <Link to="/leaderboard" className="btn ghost btn-sm">
-              Leaderboard
-            </Link>
-          </div>
-        </div>
-
         <div className="journey-tip">
           <span className="journey-tip-ico">💡</span>
           <div className="journey-tip-body">
             <strong>Did you know?</strong>
             <p>
-              One donation of a single unit can save up to three lives. A 2-month gap between
-              donations keeps you healthy and your blood safe for patients.
+              One donation can save up to three lives. A 2-month gap keeps your blood safe and healthy.
             </p>
           </div>
         </div>
@@ -296,31 +276,6 @@ export default function Donations() {
           </div>
         </div>
       )}
-
-      <div className={`eligibility-banner ${eligible ? 'ok' : 'wait'}`}>
-        <span className="eligibility-ico">{eligible ? '✅' : '⏳'}</span>
-        <div className="eligibility-body">
-          <strong>
-            {eligible
-              ? 'You are eligible to donate again'
-              : nextEligibleDate
-                ? 'Next donation window coming up'
-                : 'Donation eligibility'}
-          </strong>
-          <span>
-            {eligible
-              ? 'It has been more than 2 months since your last donation — you can save another life today.'
-              : nextEligibleDate
-                ? `You last donated on ${formatDate(lastDonation)}. You can donate again after ${formatDate(nextEligibleDate)}.`
-                : 'A 2-month gap between donations keeps you healthy and safe.'}
-          </span>
-        </div>
-        {eligible && (
-          <Link to="/requests" className="btn primary btn-sm">
-            Find a Request
-          </Link>
-        )}
-      </div>
 
       {!loading && donations.length > 0 && (
         <Section
@@ -344,22 +299,6 @@ export default function Donations() {
       )}
 
       {loading && <p className="hint">Loading your journey &amp; donations…</p>}
-
-      {!loading && !hasAny && (
-        <div className="empty-request-box">
-          <div className="droplet-icon">🩸</div>
-          <div className="empty-copy">
-            <h3>Your story starts here</h3>
-            <p>
-              This is your live journey and donation history. When you accept a blood request, its
-              real-time status appears here — and every completed donation is logged forever.
-            </p>
-          </div>
-          <Link to="/requests" className="btn primary">
-            Browse Open Requests
-          </Link>
-        </div>
-      )}
 
       <div className="journey-sections">
         {active.length > 0 && (
