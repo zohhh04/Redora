@@ -5,6 +5,7 @@ const { scoreDonorForRequest, scoreRequestForDonor, canDonateTo, isEligible, hav
 const { stageLabel, TRANSITIONS, certificateCode } = require("../utils/journeyUtils")
 const { sendEmail, emergencyBloodTemplate } = require("../utils/sendEmail")
 const { emitToUser } = require("../socket")
+const { generateNarrative } = require("../utils/certificateAi")
 
 // Tell everyone connected that cares about this request to refresh — the
 // patient who owns it and the currently matched donor (if any).
@@ -637,7 +638,8 @@ const getTracking = async (req, res) => {
   }
 }
 
-// GET /api/requests/:id/certificate - donation certificate (issued to the donating donor)
+// GET /api/requests/:id/certificate?lang=en - donation certificate (issued to the
+// donating donor). Generates + caches an AI narrative for the requested language.
 const getCertificate = async (req, res) => {
   try {
     const request = await BloodRequest.findById(req.params.id)
@@ -654,7 +656,33 @@ const getCertificate = async (req, res) => {
       return res.status(403).json({ message: "Certificates are issued to the donating donor" })
     }
 
-    res.json({ certificate: request.certificate, request })
+    // Optional multilingual narrative. Only fetched for the language requested
+    // so switching languages on the page generates each one once and caches it.
+    const lang = String(req.query.lang || "en").slice(0, 2)
+    if (!request.certificate.narratives) request.certificate.narratives = {}
+
+    let narrative = request.certificate.narratives[lang] || null
+    if (!narrative) {
+      const ai = await generateNarrative(
+        {
+          donorName: request.matchedDonor?.name || "the donor",
+          patientName: request.patientName || request.patient?.name || "a patient in need",
+          bloodGroup: request.bloodGroup,
+          units: request.units || 1,
+          hospital: request.hospital,
+          date: request.completedAt || request.certificate.issuedAt,
+          donationCount: request.matchedDonor?.donationCount,
+        },
+        lang
+      )
+      if (ai && ai.narrative) {
+        narrative = ai.narrative
+        request.certificate.narratives[lang] = narrative
+        await request.save()
+      }
+    }
+
+    res.json({ certificate: request.certificate, request, narrative })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

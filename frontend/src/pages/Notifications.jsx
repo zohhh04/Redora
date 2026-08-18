@@ -126,7 +126,7 @@ export default function Notifications() {
               <span>New</span>
             </div>
             <div className="notif-hero-stat">
-              <span className="notif-hero-ico">🔔</span>
+              <span className="notif-hero-ico">🩸</span>
               <strong>{notifications.length}</strong>
               <span>Total</span>
             </div>
@@ -141,7 +141,7 @@ export default function Notifications() {
         <p className="hint">Loading notifications…</p>
       ) : notifications.length === 0 ? (
         <div className="card empty-request-box">
-          <span className="droplet-icon">🔔</span>
+          <span className="droplet-icon">🩸</span>
           <p>
             {isDonor
               ? "No notifications yet. You'll be notified here when a blood request needs your help."
@@ -174,7 +174,7 @@ export default function Notifications() {
                   onClick={() => !n.read && markRead(n._id)}
                 >
                   <div className="notif-row-left">
-                    <span className="notif-row-icon">{n.type === 'blood-request' ? '🩸' : '🔔'}</span>
+                    <span className="notif-row-icon">🩸</span>
                   </div>
                   <div className="notif-row-body">
                     <p className="notif-row-title">{n.title}</p>

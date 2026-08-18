@@ -18,7 +18,7 @@ function ImpactArt() {
               <stop offset="100%" stopColor="#c8102e" />
             </linearGradient>
           </defs>
-          <circle cx="150" cy="150" r="144" fill="#fff" opacity="0.5" />
+          <circle cx="150" cy="150" r="144" fill="#ffffff" />
           <circle cx="150" cy="150" r="144" fill="none" stroke="#fde8ec" strokeWidth="10" strokeDasharray="4 8" />
           <path
             d="M150 96 C 118 60 70 88 70 132 C 70 178 150 236 150 236 C 150 236 230 178 230 132 C 230 88 182 60 150 96 Z"

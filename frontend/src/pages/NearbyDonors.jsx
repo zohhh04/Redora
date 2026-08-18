@@ -409,7 +409,7 @@ export default function NearbyDonors() {
           )}
 
           <div className="dashboard-actions">
-            <Link to={`/requests/${id}/matches`} className="btn primary">
+            <Link to={`/requests/${id}/matches?radius=${radiusKm}`} className="btn primary">
               View All Matches
             </Link>
             <Link to="/dashboard" className="btn ghost">

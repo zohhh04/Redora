@@ -3,6 +3,18 @@ import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
 
+const LANGS = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'हिन्दी' },
+  { code: 'ta', label: 'தமிழ்' },
+  { code: 'te', label: 'తెలుగు' },
+  { code: 'bn', label: 'বাংলা' },
+  { code: 'mr', label: 'मराठी' },
+  { code: 'gu', label: 'ગુજરાતી' },
+  { code: 'kn', label: 'ಕನ್ನಡ' },
+  { code: 'ml', label: 'മലയാളം' },
+]
+
 function formatDate(date) {
   if (!date) return '—'
   return new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -14,11 +26,13 @@ export default function Certificate() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [lang, setLang] = useState('en')
 
   useEffect(() => {
     let active = true
+    setLoading(true)
     api
-      .get(`/requests/${id}/certificate`)
+      .get(`/requests/${id}/certificate`, { params: { lang } })
       .then(({ data }) => {
         if (active) setData(data)
       })
@@ -31,7 +45,7 @@ export default function Certificate() {
     return () => {
       active = false
     }
-  }, [id])
+  }, [id, lang])
 
   if (loading) return <p className="hint">Loading certificate…</p>
 
@@ -44,13 +58,26 @@ export default function Certificate() {
     )
   }
 
-  const { certificate, request } = data
+  const { certificate, request, narrative } = data
   const donorName = request.matchedDonor?.name || user?.name
 
   return (
     <div className="page certificate-page">
       <div className="cert-actions no-print">
         <Link to="/journey" className="btn ghost">← My Journey</Link>
+        <select
+          className="cert-lang"
+          value={lang}
+          onChange={(e) => setLang(e.target.value)}
+          title="Certificate language"
+          aria-label="Certificate language"
+        >
+          {LANGS.map((l) => (
+            <option key={l.code} value={l.code}>
+              🌐 {l.label}
+            </option>
+          ))}
+        </select>
         <button className="btn primary" onClick={() => window.print()}>
           🖨️ Print / Save as PDF
         </button>
@@ -76,13 +103,17 @@ export default function Certificate() {
 
         <p className="cert-body">This certificate is proudly presented to</p>
         <h2 className="cert-donor">{donorName}</h2>
-        <p className="cert-body">
-          in recognition of your generous blood donation of
-          <strong> {request.bloodGroup}</strong>
-          {request.units > 1 ? ` (${request.units} units)` : ''} at
-          <strong> {request.hospital || 'Hospital'}</strong>, helping save a life through the Redora
-          blood donation platform.
-        </p>
+        {narrative ? (
+          <p className="cert-body cert-narrative">{narrative}</p>
+        ) : (
+          <p className="cert-body">
+            in recognition of your generous blood donation of
+            <strong> {request.bloodGroup}</strong>
+            {request.units > 1 ? ` (${request.units} units)` : ''} at
+            <strong> {request.hospital || 'Hospital'}</strong>, helping save a life through the Redora
+            blood donation platform.
+          </p>
+        )}
 
         <div className="cert-details">
           <div className="cert-detail">

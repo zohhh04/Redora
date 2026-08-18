@@ -59,6 +59,8 @@ const requestSchema = new mongoose.Schema(
     certificate: {
       code: { type: String, default: null },
       issuedAt: { type: Date, default: null },
+      // AI-generated personalized narrative, cached per language (e.g. { en, hi }).
+      narratives: { type: mongoose.Schema.Types.Mixed, default: {} },
     },
     completedAt: { type: Date, default: null },
   },

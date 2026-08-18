@@ -5,6 +5,56 @@ const { canDonateTo, isEligible } = require("../utils/matchUtils")
 const NOMINATIM = "https://nominatim.openstreetmap.org/search"
 const NOMINATIM_REVERSE = "https://nominatim.openstreetmap.org/reverse"
 
+// LocationIQ (free tier: 5,000 req/day) is a drop-in Nominatim-compatible API
+// with better, more reliable accuracy for typed addresses. When a key is
+// configured we prefer it and fall back to Nominatim on any failure.
+const LOCATIONIQ_KEY = (process.env.LOCATIONIQ_KEY || "").trim()
+const LOCATIONIQ = "https://us1.locationiq.com/v1"
+
+// Forward geocode a single candidate, preferring LocationIQ then Nominatim.
+async function searchProvider(candidate) {
+  if (LOCATIONIQ_KEY) {
+    const url = `${LOCATIONIQ}/search?key=${LOCATIONIQ_KEY}&format=json&countrycodes=in&addressdetails=1&limit=10&q=${encodeURIComponent(candidate)}`
+    try {
+      const response = await fetch(url, { headers: { Accept: "application/json" } })
+      if (response.ok) return response.json()
+    } catch {
+      // fall through to Nominatim
+    }
+  }
+  const url = `${NOMINATIM}?format=json&addressdetails=1&limit=10&countrycodes=in&q=${encodeURIComponent(candidate)}`
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "RedoraBloodDonation/1.0",
+      Accept: "application/json",
+    },
+  })
+  if (!response.ok) return []
+  return response.json()
+}
+
+// Reverse geocode coordinates, preferring LocationIQ then Nominatim.
+async function reverseProvider(lat, lng) {
+  if (LOCATIONIQ_KEY) {
+    const url = `${LOCATIONIQ}/reverse?key=${LOCATIONIQ_KEY}&format=json&lat=${lat}&lon=${lng}&zoom=16`
+    try {
+      const response = await fetch(url, { headers: { Accept: "application/json" } })
+      if (response.ok) return response.json()
+    } catch {
+      // fall through to Nominatim
+    }
+  }
+  const url = `${NOMINATIM_REVERSE}?format=jsonv2&lat=${lat}&lon=${lng}&zoom=16`
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "RedoraBloodDonation/1.0",
+      Accept: "application/json",
+    },
+  })
+  if (!response.ok) throw new Error("Reverse geocode service unavailable")
+  return response.json()
+}
+
 // GET /api/geo/geocode?q=... - geocode a free-text location to {lat, lon}
 const geocode = async (req, res) => {
   try {
@@ -53,45 +103,95 @@ function buildCandidates(q) {
   return [...new Set(list)].filter((s) => s.length > 1)
 }
 
-// Pick the most precise result instead of blindly returning the first hit, so
-// a specific locality is preferred over a vague city/state administrative
-// boundary (which would otherwise map to the wrong place).
+// Result types that correspond to an actual point a person can be at — a road,
+// street, house, building or locality. Prefer these so the pin drops on the real
+// spot instead of a state/district centroid or a nearby landmark.
+const POINT_TYPES = new Set([
+  "city", "town", "village", "hamlet", "municipality", "suburb", "neighbourhood",
+  "neighborhood", "quarter", "borough", "road", "street", "building", "house",
+  "residential", "place", "postcode", "locality",
+])
+
+// Medical facilities are the exact destination of a blood request, so they are
+// the strongest match for a hospital location.
+const MEDICAL_TYPES = new Set([
+  "hospital", "clinic", "doctors", "health", "pharmacy", "nurses", "medical",
+])
+
+// Named landmarks (temples, shops, stations, offices…) are rarely where the
+// user actually is. If the typed address mentions one (e.g. "near the temple"),
+// the pin should still land on the surrounding road/area, not the POI itself.
+const LANDMARK_TYPES = new Set([
+  "place_of_worship", "temple", "church", "mosque", "tourism", "attraction",
+  "monument", "museum", "shop", "mall", "office", "leisure", "cafe", "restaurant",
+  "bank", "amenity", "school", "college", "university", "station", "railway", "fuel",
+])
+
+// Pick the most precise result instead of blindly returning the first hit. The
+// result's category (a real point vs. a landmark vs. an administrative region)
+// is the deciding factor; typed-token matching is only a tiebreaker within a
+// category. This stops a landmark name typed in the address from dragging the
+// pin onto the landmark instead of the actual street/area.
 function scoreResult(r, sigTokens, states) {
   const label = normalizeText(r.display_name || "")
-  let score = 0
-  for (const w of sigTokens) if (label.includes(w)) score += 10
+  const type = normalizeText(r.type || "")
+  const cls = normalizeText(r.class || "")
+
+  let base = 0
+  if (MEDICAL_TYPES.has(type)) base = 80
+  else if (POINT_TYPES.has(type) || cls === "highway") base = 70
+  else if (LANDMARK_TYPES.has(type)) base = 10
+  if (type === "administrative" || type === "state" || cls === "boundary") base = -60
+
+  // Significant typed tokens that appear in the result label are evidence of a
+  // correct match; tokens the user typed but the result is missing point to a
+  // same-named place elsewhere. This is a secondary tiebreaker, not the deciding
+  // factor, so it cannot outweigh the category preference above.
+  let matched = 0
+  for (const w of sigTokens) if (label.includes(w)) matched += 1
+  const missing = sigTokens.length - matched
+  const tokenScore = matched * 7 - missing * 3
+
   // A result in a different state than the typed address is almost certainly
-  // the wrong (same-named) place — heavily penalize it.
-  if (states.length && !states.some((s) => label.includes(s))) score -= 50
-  if (r.type === "administrative" || r.class === "boundary" || r.type === "state") score -= 12
-  score += label.split(" ").length
-  return score
+  // the wrong (same-named) place — effectively disqualify it.
+  const regionPenalty =
+    states.length && !states.some((s) => label.includes(s)) ? 200 : 0
+
+  // When every significant token the user typed appears in the result, it is
+  // almost certainly the exact place they meant — reward it strongly.
+  if (sigTokens.length && matched === sigTokens.length) base += 40
+
+  // Small bonus for results that carry street/amenity/locality detail, i.e. a
+  // more precise match than a bare place name.
+  const addr = r.address || {}
+  if (addr.road || addr.amenity || addr.suburb || addr.neighbourhood) base += 8
+
+  return base + tokenScore - regionPenalty
 }
 
 async function tryCandidates(candidates, sigTokens = [], states = []) {
   let best = null
   let bestScore = -Infinity
-  for (const candidate of candidates) {
+  // Candidates are ordered most-complete (the full typed address) first. We
+  // weight earlier candidates higher so a street hit from the full address beats
+  // a bare-locality hit from a simplified fallback — mapping the exact spot the
+  // user gave, not just the area.
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i]
     try {
-      const url = `${NOMINATIM}?format=json&limit=5&countrycodes=in&q=${encodeURIComponent(candidate)}`
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": "RedoraBloodDonation/1.0",
-          Accept: "application/json",
-        },
-      })
-      if (!response.ok) continue
-
-      const data = await response.json()
+      const data = await searchProvider(candidate)
       if (!data.length) continue
 
-      const hit = data.find((r) => isInIndia(r)) || data[0]
-      if (!hit) continue
-
-      const score = scoreResult(hit, sigTokens, states)
-      if (score > bestScore) {
-        bestScore = score
-        best = hit
+      // Score every Indian hit (not just the first), so a precise locality
+      // later in the list isn't missed in favour of a broad first match.
+      const candidateBonus = (candidates.length - i) * 6
+      for (const hit of data) {
+        if (!isInIndia(hit)) continue
+        const score = scoreResult(hit, sigTokens, states) + candidateBonus
+        if (score > bestScore) {
+          bestScore = score
+          best = hit
+        }
       }
     } catch {
       // try the next candidate
@@ -110,16 +210,7 @@ const reverseGeocode = async (req, res) => {
       return res.status(400).json({ message: "Valid lat and lng are required" })
     }
 
-    const url = `${NOMINATIM_REVERSE}?format=jsonv2&lat=${lat}&lon=${lng}&zoom=16`
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "RedoraBloodDonation/1.0",
-        Accept: "application/json",
-      },
-    })
-    if (!response.ok) throw new Error("Reverse geocode service unavailable")
-
-    const data = await response.json()
+    const data = await reverseProvider(lat, lng)
     if (!data || !data.lat) return res.json({ result: null })
 
     const addr = data.address || {}
@@ -210,16 +301,8 @@ function buildVerifyCandidates(name, location) {
 }
 
 async function nominatimSearch(q) {
-  const url = `${NOMINATIM}?format=json&limit=10&countrycodes=in&q=${encodeURIComponent(q)}`
   try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "RedoraBloodDonation/1.0",
-        Accept: "application/json",
-      },
-    })
-    if (!response.ok) return []
-    const results = await response.json()
+    const results = await searchProvider(q)
     return results.filter(isInIndia)
   } catch {
     return []

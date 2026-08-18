@@ -201,12 +201,12 @@ export default function PatientRequests() {
         </div>
 
         <div className="journey-tip">
-          <span className="journey-tip-ico">🩸</span>
+          <span className="journey-tip-ico">💡</span>
           <div className="journey-tip-body">
-            <strong>How to read this page</strong>
+            <strong>Need blood fast?</strong>
             <p>
-              Open — waiting for a donor, tap &quot;View Matches&quot; to pick one. Active — a donor is
-              on the way, track them live. Completed — your blood was delivered and a certificate is ready.
+              Mark urgent requests as <em>Emergency</em> so compatible, available donors are matched
+              and notified first. Track your live donor from the &quot;Active&quot; section above.
             </p>
           </div>
         </div>

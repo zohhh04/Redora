@@ -1,10 +1,12 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
 import CallPanel from '../components/CallPanel'
 import LiveMap from '../components/LiveMap'
 import MessagePanel from '../components/MessagePanel'
+import VoiceControls from '../components/VoiceControls'
+import { useVoiceAnnounce } from '../hooks/useVoiceAnnounce'
 
 const LINEAR_STAGES = [
   { stage: 'matched', icon: '🤝', label: 'Donor Matched', sub: 'A donor was matched to your request' },
@@ -14,6 +16,15 @@ const LINEAR_STAGES = [
   { stage: 'donating', icon: '🩸', label: 'Donation In Progress', sub: 'The donation is happening at the hospital' },
   { stage: 'completed', icon: '🎉', label: 'Donation Completed', sub: 'Donation completed successfully' },
 ]
+
+const VOICE_STATUS = {
+  matched: 'A donor has been matched to your request.',
+  accepted: 'The trip has started. The donor is on the way.',
+  traveling: 'The donor is on the way to the hospital.',
+  arrived: 'The donor has arrived at the hospital.',
+  donating: 'The donation is in progress at the hospital.',
+  completed: 'The donation has been completed successfully.',
+}
 
 const STATUS_LABEL = {
   open: 'Looking for a donor',
@@ -64,6 +75,20 @@ export default function PatientTracking() {
   const [msg, setMsg] = useState('')
   const [lastSync, setLastSync] = useState(null)
   const [eta, setEta] = useState(null)
+
+  const { lang, setLang, voiceOn, toggleVoice, announce } = useVoiceAnnounce()
+  const lastSpokenRef = useRef(null)
+
+  // Speak each journey stage in the chosen language when it changes (or when
+  // voice is switched on), so a doctor can follow hands-free.
+  useEffect(() => {
+    if (!request) return
+    const s = request.status
+    if (voiceOn && VOICE_STATUS[s] && s !== lastSpokenRef.current) {
+      lastSpokenRef.current = s
+      announce(VOICE_STATUS[s])
+    }
+  }, [request, voiceOn, announce])
 
   const onRoute = useCallback((info) => setEta(info), [])
 
@@ -164,6 +189,9 @@ export default function PatientTracking() {
     bike: { icon: '🛵', label: 'Coming by bike' },
     walk: { icon: '🚶', label: 'Coming on foot' },
   }
+  const linearStages = LINEAR_STAGES.map((s) =>
+    s.stage === 'traveling' ? { ...s, icon: MODES[activeMode].icon } : s,
+  )
   const tripStarted =
     status === 'traveling' || status === 'arrived' || status === 'donating' || completed
 
@@ -223,6 +251,7 @@ export default function PatientTracking() {
             {donor ? `Follow ${donor.name} until they reach the hospital` : 'Waiting for a donor to accept this request'}
           </p>
         </div>
+        <VoiceControls lang={lang} setLang={setLang} voiceOn={voiceOn} toggleVoice={toggleVoice} />
         {!cancelled && (
           <span className={`live-badge ${completed ? 'live-green' : ''}`}>
             <span className="live-dot"></span>
@@ -315,7 +344,7 @@ export default function PatientTracking() {
             <p className="hint">Waiting for a donor to accept this request…</p>
           ) : (
             <div className="stepper">
-              {LINEAR_STAGES.map((s, i) => {
+              {linearStages.map((s, i) => {
                 const done = linearDone.has(s.stage)
                 const active = i === currentIndex
                 const nextDone =

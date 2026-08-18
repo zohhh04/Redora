@@ -3,6 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 import LiveMap from '../components/LiveMap'
 import MessagePanel from '../components/MessagePanel'
+import VoiceControls from '../components/VoiceControls'
+import { useVoiceAnnounce } from '../hooks/useVoiceAnnounce'
 
 const LINEAR_STAGES = [
   { stage: 'matched', icon: '🤝', label: 'You Were Matched', sub: 'You were matched to this blood request' },
@@ -12,6 +14,15 @@ const LINEAR_STAGES = [
   { stage: 'donating', icon: '🩸', label: 'Donation In Progress', sub: 'The donation is happening at the hospital' },
   { stage: 'completed', icon: '🎉', label: 'Donation Completed', sub: 'Donation completed successfully' },
 ]
+
+const VOICE_STATUS = {
+  matched: 'You have been matched to a blood request.',
+  accepted: 'The trip has started. You are on the way.',
+  traveling: 'You are on the way to the hospital.',
+  arrived: 'You have arrived at the hospital.',
+  donating: 'The donation is in progress at the hospital.',
+  completed: 'Your donation has been completed successfully.',
+}
 
 const STATUS_LABEL = {
   open: 'Looking for a donor',
@@ -80,6 +91,20 @@ export default function DonorTracking() {
   const modePickedRef = useRef(false)
   const watcherRef = useRef(null)
   const routeRef = useRef(null)
+
+  const { lang, setLang, voiceOn, toggleVoice, announce } = useVoiceAnnounce()
+  const lastSpokenRef = useRef(null)
+
+  // Speak each journey stage in the chosen language when it changes (or when
+  // voice is switched on), so the donor can stay aware hands-free.
+  useEffect(() => {
+    if (!request) return
+    const s = request.status
+    if (voiceOn && VOICE_STATUS[s] && s !== lastSpokenRef.current) {
+      lastSpokenRef.current = s
+      announce(VOICE_STATUS[s])
+    }
+  }, [request, voiceOn, announce])
 
   const onRoute = useCallback((info) => {
     routeRef.current = info
@@ -288,6 +313,10 @@ export default function DonorTracking() {
 
   const currentIndex = LINEAR_STAGES.findIndex((s) => s.stage === status)
 
+  const linearStages = LINEAR_STAGES.map((s) =>
+    s.stage === 'traveling' ? { ...s, icon: MODE_META[mode] } : s,
+  )
+
   const events = request.journey.filter(
     (e) => !LINEAR_STAGES.some((s) => s.stage === e.stage),
   )
@@ -324,6 +353,7 @@ export default function DonorTracking() {
           <h2>My Donation Journey</h2>
           <p className="hint">Your blood donation trip to the hospital, step by step</p>
         </div>
+        <VoiceControls lang={lang} setLang={setLang} voiceOn={voiceOn} toggleVoice={toggleVoice} />
         {!cancelled && (
           <span className={`live-badge ${completed ? 'live-green' : ''}`}>
             <span className="live-dot"></span>
@@ -383,7 +413,7 @@ export default function DonorTracking() {
         {gpsError && <p className="map-status">{gpsError}</p>}
 
         <div className="eta-banner trip-banner">
-          <span className="eta-banner-ico">{status === 'arrived' ? '🏥' : status === 'donating' ? '🩸' : completed ? '🎉' : '🚗'}</span>
+          <span className="eta-banner-ico">{status === 'arrived' ? '🏥' : status === 'donating' ? '🩸' : completed ? '🎉' : MODE_META[mode]}</span>
           <div className="eta-banner-info">
             <span className="eta-main">{tripMain}</span>
             <span className="eta-secondary">{tripSub}</span>
@@ -402,7 +432,7 @@ export default function DonorTracking() {
                 ))}
                 {canStartTrip && (
                   <button className="btn primary start-trip-btn" onClick={startTrip}>
-                    🚗 Start Trip
+                    {MODE_META[mode]} Start Trip
                   </button>
                 )}
               </div>
@@ -424,7 +454,7 @@ export default function DonorTracking() {
             <p className="hint">Waiting for the patient to confirm you…</p>
           ) : (
             <div className="stepper">
-              {LINEAR_STAGES.map((s, i) => {
+              {linearStages.map((s, i) => {
                 const done = linearDone.has(s.stage)
                 const active = i === currentIndex
                 const nextDone =
@@ -514,7 +544,7 @@ export default function DonorTracking() {
               <div className="journey-actions">
                 {canStartTrip && (
                   <button className="btn primary btn-block" onClick={startTrip}>
-                    🚗 Start Trip
+                    {MODE_META[mode]} Start Trip
                   </button>
                 )}
 

@@ -254,11 +254,12 @@ export default function Donations() {
         </div>
 
         <div className="journey-tip">
-          <span className="journey-tip-ico">💡</span>
+          <span className="journey-tip-ico">🤝</span>
           <div className="journey-tip-body">
-            <strong>Did you know?</strong>
+            <strong>You make a difference</strong>
             <p>
-              One donation can save up to three lives. A 2-month gap keeps your blood safe and healthy.
+              Every completed donation is recorded here with its certificate. Share your achievements
+              and keep the streak going — your next donation could save a life.
             </p>
           </div>
         </div>

@@ -56,6 +56,10 @@ MONGO_URI=your_mongodb_atlas_connection_string
 JWT_SECRET=change_this_to_a_long_random_string
 EMAIL_USER=
 EMAIL_PASS=
+# Optional — enables real conversational AI for the AURA chatbot:
+GEMINI_API_KEY=your_free_google_gemini_api_key
+# Optional — model to use (defaults to gemini-2.5-flash free tier):
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 Run:

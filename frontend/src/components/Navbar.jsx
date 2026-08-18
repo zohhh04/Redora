@@ -9,8 +9,14 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
   const [unread, setUnread] = useState(0)
+  const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
   const onHome = location.pathname === '/'
+
+  // Close the mobile menu whenever the route changes.
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [location.pathname])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
@@ -51,8 +57,7 @@ export default function Navbar() {
 
       {onHome && <div className="nav-links"></div>}
 
-      <div className="nav-actions">
-        <ThemeToggle />
+      <div className={`nav-actions ${menuOpen ? 'open' : ''}`}>
         {user && (user.role === 'donor' || user.role === 'patient') && (
           <button
             type="button"
@@ -122,6 +127,21 @@ export default function Navbar() {
             </Link>
           </>
         )}
+      </div>
+
+      <div className="nav-tools">
+        <ThemeToggle />
+        <button
+          type="button"
+          className={`nav-burger ${menuOpen ? 'open' : ''}`}
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label="Toggle menu"
+          aria-expanded={menuOpen}
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
       </div>
     </nav>
   )

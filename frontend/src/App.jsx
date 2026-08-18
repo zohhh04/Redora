@@ -6,7 +6,7 @@ import api from './api/axios'
 import Navbar from './components/Navbar'
 import NotificationPopup from './components/NotificationPopup'
 import AuraChatbot from './components/AuraChatbot'
-import ErrorBoundary from './components/ErrorBoundary'
+import ChatbotBoundary from './components/ChatbotBoundary'
 import Home from './pages/Home'
 import Register from './pages/Register'
 import VerifyOtp from './pages/VerifyOtp'
@@ -236,14 +236,15 @@ function PatientJourneyWatcher() {
 }
 
 export default function App() {
+  const [chatKey, setChatKey] = useState(0)
   return (
     <ThemeProvider>
       <AuthProvider>
         <Navbar />
         <NotificationPopup />
-        <ErrorBoundary>
-          <AuraChatbot />
-        </ErrorBoundary>
+        <ChatbotBoundary onRestart={() => setChatKey((k) => k + 1)}>
+          <AuraChatbot key={chatKey} autoOpen={chatKey > 0} />
+        </ChatbotBoundary>
         <PatientJourneyWatcher />
         <div className="app">
           <Routes>

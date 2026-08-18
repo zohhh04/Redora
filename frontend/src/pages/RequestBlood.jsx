@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 
 const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
@@ -17,18 +17,84 @@ const emptyForm = {
 
 export default function RequestBlood() {
   const navigate = useNavigate()
-  const [form, setForm] = useState(emptyForm)
+  const location = useLocation()
+  // AURA chatbot collects the details and passes them here as prefill state so
+  // the fields below are already filled in for the patient to review.
+  const prefill = location.state?.prefill || null
+  const [form, setForm] = useState(() =>
+    prefill
+      ? {
+          bloodGroup: prefill.bloodGroup || '',
+          units: prefill.units || 1,
+          hospital: prefill.hospital || '',
+          phone: prefill.phone || '',
+          location: prefill.location || '',
+          urgency: prefill.urgency || 'emergency',
+          notes: prefill.notes || '',
+          patientName: prefill.patientName || '',
+        }
+      : emptyForm
+  )
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [verify, setVerify] = useState({ status: 'idle', match: null, message: '' })
   const [auto, setAuto] = useState({ status: 'idle', match: null })
+  const [picked, setPicked] = useState(prefill?.liveCoords?.lat ? prefill.liveCoords : null)
+  const [locBusy, setLocBusy] = useState(false)
+
+  // When the chatbot pre-filled live coordinates, show that spot was captured.
+  useEffect(() => {
+    if (prefill?.liveCoords?.lat != null && !picked) {
+      setPicked(prefill.liveCoords)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
     if (e.target.name === 'location') {
       setVerify({ status: 'idle', match: null, message: '' })
       setAuto({ status: 'idle', match: null })
+      setPicked(null)
     }
+  }
+
+  // Device GPS is the most accurate, free location source — far more precise than
+  // map pinning or typed addresses. It returns sub-meter coordinates from the
+  // phone's receiver, then we reverse-geocode them into a readable label.
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Location isn\u2019t supported in this browser. Please type the hospital location.')
+      return
+    }
+    setError('')
+    setLocBusy(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords
+        let label = ''
+        try {
+          const { data } = await api.get('/geo/reverse', { params: { lat, lng } })
+          label = data.result?.label || ''
+        } catch {
+          // keep label empty
+        }
+        const meters = Math.round(accuracy ?? 0)
+        setPicked({
+          lat,
+          lng,
+          label,
+          accuracy: meters ? `±${meters}m` : '',
+        })
+        if (label) setForm((f) => ({ ...f, location: label }))
+        setLocBusy(false)
+      },
+      () => {
+        setLocBusy(false)
+        setError('Could not get your location. Check that location permission is allowed, then try again.')
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    )
   }
 
   // Auto-map the typed location as the user types, so the pin appears without
@@ -101,7 +167,7 @@ export default function RequestBlood() {
     setError('')
     if (!form.bloodGroup) return setError('Please select a blood group')
     if (!form.location.trim()) return setError('Please enter the location of the patient')
-    const source = verify.match || auto.match
+    const source = picked || auto.match || verify.match
     if (!source || source.lat == null || (source.lng == null && source.lon == null)) {
       return setError('Please verify the hospital and location before posting the request.')
     }
@@ -189,16 +255,37 @@ export default function RequestBlood() {
           </label>
           <label className="field">
             <span>Location</span>
-            <input name="location" placeholder="City, area" value={form.location} onChange={handleChange} />
+            <input
+              name="location"
+              placeholder="e.g. Shilpa Enclave Main Road, Chandanagar, Hyderabad, 500050, Telangana"
+              value={form.location}
+              onChange={handleChange}
+            />
           </label>
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={verifyHospital}
-            disabled={verify.status === 'checking'}
-          >
-            {verify.status === 'checking' ? 'Verifying…' : 'Verify Hospital & Location'}
-          </button>
+          <p className="hint location-format-hint">
+            📍 Use <strong>Road/Colony, Area, City, PIN code, State</strong>. Include the PIN code —
+            it anchors the spot precisely. Avoid leading landmarks (temples, shops) — they can pull
+            the pin to that building. Or tap below to use your device&rsquo;s GPS for the most
+            accurate spot.
+          </p>
+          <div className="req-loc-actions">
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={verifyHospital}
+              disabled={verify.status === 'checking'}
+            >
+              {verify.status === 'checking' ? 'Verifying…' : 'Verify Hospital & Location'}
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={useMyLocation}
+              disabled={locBusy}
+            >
+              {locBusy ? 'Getting location…' : '📍 Use my exact location (GPS)'}
+            </button>
+          </div>
           {verify.status === 'verified' && <p className="success">{verify.message}</p>}
           {verify.status === 'mismatch' && <p className="error">{verify.message}</p>}
           {verify.status === 'notfound' && <p className="error">{verify.message}</p>}
@@ -209,7 +296,12 @@ export default function RequestBlood() {
           {!verify.match && auto.status === 'error' && (
             <p className="error">The location verification service couldn't be reached. Check your connection and try again.</p>
           )}
-          {verify.status === 'verified' && <div className="map-preview-hidden" aria-hidden="true" />}
+          {picked && (
+            <p className="success">
+              ✓ Exact spot captured via GPS{picked.accuracy ? ` (accuracy ${picked.accuracy})` : ''}
+              {picked.label ? `: ${picked.label}` : ''}
+            </p>
+          )}
         </div>
 
         <div className="req-section">

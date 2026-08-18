@@ -3,11 +3,11 @@ import { Component } from 'react'
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false }
+    this.state = { hasError: false, error: null }
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
   }
 
   componentDidCatch(error, info) {
@@ -15,7 +15,7 @@ export default class ErrorBoundary extends Component {
   }
 
   handleReset = () => {
-    this.setState({ hasError: false })
+    this.setState({ hasError: false, error: null })
   }
 
   render() {
@@ -26,6 +26,11 @@ export default class ErrorBoundary extends Component {
             <span className="logout-icon">🛠️</span>
             <h2>Something went wrong</h2>
             <p>An unexpected error occurred on this part of the page. Your data is safe.</p>
+            {this.state.error && (
+              <pre className="error-stack">
+                {String(this.state.error?.message || this.state.error)}
+              </pre>
+            )}
             <div className="dashboard-actions">
               <button className="btn primary" onClick={this.handleReset}>
                 Try Again
