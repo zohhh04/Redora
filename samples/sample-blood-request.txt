@@ -1,0 +1,16 @@
+HOSPITAL NOTE — BLOOD TRANSFUSION REQUEST
+
+Patient Name: Rahul Sharma
+Contact Phone: +91 98765 43210
+
+Blood Group Required: O+
+Units of Blood Needed: 2
+
+Hospital: City Care Medical Center
+Hospital Address: Plot 42, Shilpa Enclave Main Road, Chandanagar, Hyderabad, 500050, Telangana
+
+Urgency: EMERGENCY
+
+Notes: Patient admitted with severe anaemia due to road accident.
+Blood transfusion required immediately. Requesting compatible donor
+at the earliest. The hospital blood bank has no O+ stock available.

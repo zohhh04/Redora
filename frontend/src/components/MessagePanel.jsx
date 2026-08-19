@@ -2,35 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
 
-const LANG_KEY = 'chatLang'
-
-const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'hi', label: 'हिन्दी (Hindi)' },
-  { code: 'ta', label: 'தமிழ் (Tamil)' },
-  { code: 'te', label: 'తెలుగు (Telugu)' },
-  { code: 'kn', label: 'ಕನ್ನಡ (Kannada)' },
-  { code: 'ml', label: 'മലയാളം (Malayalam)' },
-  { code: 'bn', label: 'বাংলা (Bengali)' },
-  { code: 'mr', label: 'मराठी (Marathi)' },
-  { code: 'gu', label: 'ગુજરાતી (Gujarati)' },
-  { code: 'pa', label: 'ਪੰਜਾਬੀ (Punjabi)' },
-  { code: 'ur', label: 'اردو (Urdu)' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'zh', label: '中文 (Chinese)' },
-]
-
-function loadLang() {
-  try {
-    const saved = localStorage.getItem(LANG_KEY)
-    if (saved && LANGUAGES.some((l) => l.code === saved)) return saved
-  } catch {}
-  return 'en'
-}
-
 export default function MessagePanel({ requestId, otherName }) {
   const { user } = useAuth()
   const [messages, setMessages] = useState([])
@@ -38,15 +9,13 @@ export default function MessagePanel({ requestId, otherName }) {
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState(null)
-  const [lang, setLang] = useState(loadLang)
-  const [showOrig, setShowOrig] = useState({})
   const panelRef = useRef(null)
   const modalRef = useRef(null)
   const boxRef = useRef(null)
 
   const load = async () => {
     try {
-      const { data } = await api.get(`/requests/${requestId}/messages`, { params: { lang } })
+      const { data } = await api.get(`/requests/${requestId}/messages`)
       setMessages(data.messages || [])
     } catch {}
   }
@@ -56,26 +25,11 @@ export default function MessagePanel({ requestId, otherName }) {
     const timer = setInterval(load, 5000)
     return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestId, lang])
+  }, [requestId])
 
   useEffect(() => {
     if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight
   }, [messages, open])
-
-  const changeLang = (e) => {
-    const code = e.target.value
-    setLang(code)
-    try {
-      localStorage.setItem(LANG_KEY, code)
-    } catch {}
-    setShowOrig({})
-  }
-
-  const displayText = (m) =>
-    m.translated && showOrig[m._id] ? m.originalText : m.text
-
-  const toggleOrig = (id) =>
-    setShowOrig((p) => ({ ...p, [id]: !p[id] }))
 
   const openChat = () => {
     if (panelRef.current) {
@@ -138,7 +92,7 @@ export default function MessagePanel({ requestId, otherName }) {
               <span className="chat-mini-from">
                 {mine(lastMsg) ? 'You' : lastMsg.from?.name || otherName}
               </span>
-              <span className="chat-mini-preview">{displayText(lastMsg)}</span>
+              <span className="chat-mini-preview">{lastMsg.text}</span>
             </>
           ) : (
             <span className="chat-mini-preview">No messages yet</span>
@@ -170,16 +124,6 @@ export default function MessagePanel({ requestId, otherName }) {
           <div className="chat-modal">
             <div className="chat-modal-head">
               <span className="chat-modal-title">💬 {otherName}</span>
-              <label className="chat-lang">
-                <span>🌐</span>
-                <select value={lang} onChange={changeLang} aria-label="Translation language">
-                  {LANGUAGES.map((l) => (
-                    <option key={l.code} value={l.code}>
-                      {l.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <button
                 type="button"
                 className="chat-modal-close"
@@ -190,12 +134,6 @@ export default function MessagePanel({ requestId, otherName }) {
               </button>
             </div>
             <div className="chat-modal-body">
-              {lang !== 'en' && (
-                <p className="chat-lang-note">
-                  Messages are auto-translated to{' '}
-                  {LANGUAGES.find((l) => l.code === lang)?.label}
-                </p>
-              )}
               <div className="chat-box" ref={boxRef}>
                 {messages.length === 0 && (
                   <p className="chat-empty">No messages yet. Say hi to {otherName}.</p>
@@ -205,16 +143,7 @@ export default function MessagePanel({ requestId, otherName }) {
                     <span className="chat-name">
                       {mine(m) ? 'You' : m.from?.name || otherName}
                     </span>
-                    <span className="chat-bubble">{displayText(m)}</span>
-                    {m.translated && (
-                      <button
-                        type="button"
-                        className="chat-orig-toggle"
-                        onClick={() => toggleOrig(m._id)}
-                      >
-                        {showOrig[m._id] ? 'Show translated' : 'Show original'}
-                      </button>
-                    )}
+                    <span className="chat-bubble">{m.text}</span>
                     <span className="chat-time">
                       {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                     </span>

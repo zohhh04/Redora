@@ -433,6 +433,7 @@ textarea:focus {
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
 /* Theme toggle + burger stay together on the right; on mobile the theme
@@ -7401,36 +7402,10 @@ textarea:focus {
   margin-left: 2px;
 }
 
-/* ---- Cross-lingual voice guide (tracking pages) ---- */
-.voice-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px;
-  border-radius: 999px;
-  background: var(--card);
-  border: 1px solid var(--border);
-}
-
-.voice-controls.on {
-  border-color: var(--red);
-  box-shadow: 0 0 0 2px rgba(200, 16, 46, 0.15);
-}
-
-.voice-lang {
-  border: none;
-  background: transparent;
-  color: var(--ink);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  outline: none;
-  max-width: 120px;
-}
-
+/* ---- Voice updates (tracking pages, English) ---- */
 .voice-toggle {
-  width: 34px;
-  height: 30px;
+  width: 38px;
+  height: 32px;
   display: grid;
   place-items: center;
   border: none;
@@ -7456,7 +7431,7 @@ textarea:focus {
   margin-bottom: 14px;
 }
 
-.tracking-header .voice-controls {
+.tracking-header .voice-toggle {
   margin-left: auto;
 }
 
@@ -8832,7 +8807,8 @@ textarea:focus {
   background: var(--card);
 }
 .aura-mic,
-.aura-send {
+.aura-send,
+.aura-attach {
   flex: 0 0 auto;
   width: 42px;
   height: 42px;
@@ -8845,6 +8821,18 @@ textarea:focus {
   background: var(--red-light);
   color: var(--red);
   transition: background 0.2s, transform 0.2s;
+}
+.aura-attach {
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.aura-attach:hover {
+  border-color: var(--red);
+  transform: translateY(-1px);
+}
+.aura-attach:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .aura-mic.on {
   background: var(--red);

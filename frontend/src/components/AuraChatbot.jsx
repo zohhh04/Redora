@@ -3,23 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-
-// Languages AURA can speak in. Gemini answers natively in any of these; the
-// browser speech synthesizer voices the reply. 'voice' is the BCP-47 tag used
-// to pick a matching TTS voice where available.
-const LANGS = [
-  { code: 'en', label: 'English', voice: 'en' },
-  { code: 'hi', label: 'हिन्दी (Hindi)', voice: 'hi' },
-  { code: 'ta', label: 'தமிழ் (Tamil)', voice: 'ta' },
-  { code: 'te', label: 'తెలుగు (Telugu)', voice: 'te' },
-  { code: 'bn', label: 'বাংলা (Bengali)', voice: 'bn' },
-  { code: 'mr', label: 'मराठी (Marathi)', voice: 'mr' },
-  { code: 'gu', label: 'ગુજરાતી (Gujarati)', voice: 'gu' },
-  { code: 'kn', label: 'ಕನ್ನಡ (Kannada)', voice: 'kn' },
-  { code: 'ml', label: 'മലയാളം (Malayalam)', voice: 'ml' },
-]
-
 /* ------------------------------------------------------------------ *
  *  Knowledge base — AURA answers questions about the Redora project.
  *  `role` restricts each answer to a side: 'donor', 'patient', or 'both'.
@@ -64,9 +47,8 @@ const KB = [
   {
     role: 'patient',
     keys: ['request blood', 'request', 'need blood', 'post request', 'create request', 'urgent'],
-    text: 'Great — I can create your blood request right here! 🏥 I\'ll ask a few quick questions: patient name, contact number, blood group, units, hospital, location (type it or share your live location), urgency, and any notes. Then I\'ll fill the New Blood Request form with your answers so you can review and post. Ready? Say "yes" or tap "Start".',
-    suggestions: ['Start', 'How does matching work?'],
-    startWizard: true,
+    text: 'To create a blood request, just upload the file 📎 (a prescription, hospital note, or lab report — PDF, image, or text). I\u2019ll read it and auto-fill every field on the New Blood Request form for you to review and post. No typing needed!',
+    suggestions: ['How does matching work?', 'What can you do?'],
   },
   {
     role: 'both',
@@ -132,6 +114,12 @@ const KB = [
     suggestions: ['Request blood', 'How does matching work?'],
   },
   {
+    role: 'patient',
+    keys: ['upload', 'upload file', 'upload a file', 'attach', 'attach file', 'auto fill', 'prefill', 'auto-fill', 'read my file', 'upload prescription'],
+    text: 'Great idea — you can upload a file (PDF, image, or text) and I\u2019ll read it and auto-fill a blood request for you! 📄 Just tap the paperclip 📎 in the chat bar and pick the file (a prescription, hospital note, or lab report works best). I\u2019ll extract the patient name, blood group, units, hospital, location, urgency, and notes, then pre-fill the New Blood Request form for you to review.',
+    suggestions: ['Request blood', 'How does matching work?'],
+  },
+  {
     role: 'both',
     keys: ['nearby donors', 'nearby donor', 'who is near me', 'closest donor', 'near me', 'nearest donor'],
     text: 'Use Search Donors to find verified donors by blood group and city, or Nearby Donors to see eligible donors around a location on a map with distances. The closest eligible and compatible donors are listed first, with their distance in kilometres. 📍',
@@ -192,10 +180,124 @@ const KB = [
     suggestions: ['Am I eligible?', 'How do I donate?'],
   },
   {
-    role: 'donor',
-    keys: ['weight', 'age', '18', '60', 'healthy', 'conditions', 'requirements'],
-    text: 'General donor requirements: be 18–60 years old, weigh at least 45 kg, and be in good health with no active infection. Redora also enforces the 2-month gap and only matches compatible blood groups. ⚠️ Always confirm with a doctor.',
+    role: 'both',
+    keys: ['weight', 'how much should i weigh', 'minimum weight', 'kgs', 'kg', 'age', '18', '60', 'healthy', 'conditions', 'requirements', 'qualification', 'qualify', 'can i donate'],
+    text: 'General donor requirements: be 18–60 years old, weigh at least 45 kg (about 99 lbs), and be in good health with no active infection. Redora also enforces the 2-month gap and only matches compatible blood groups. ⚠️ Always confirm with a doctor.',
     suggestions: ['Am I eligible?', 'Blood group compatibility'],
+  },
+  {
+    role: 'both',
+    keys: ['how much blood', 'how much do they take', 'amount of blood', 'ml', '450', 'donation amount', 'how many ml', 'blood taken'],
+    text: 'A standard whole-blood donation collects about 350–450 ml (roughly one pint) — only a small fraction of your body\u2019s total blood, and your body quickly replaces it. 🩸',
+    suggestions: ['Is it safe?', 'How long does it take?', 'Am I eligible?'],
+  },
+  {
+    role: 'both',
+    keys: ['is it safe', 'safe to donate', 'risks', 'dangerous', 'hurt', 'painful', 'side effects', 'will it hurt', 'harm'],
+    text: 'Yes, donating blood is very safe. It uses a sterile, single-use needle and you\u2019re monitored throughout. Mild side effects like a little dizziness or a small bruise can happen, but serious problems are extremely rare. 💪',
+    suggestions: ['How long does it take?', 'What should I eat before?', 'Am I eligible?'],
+  },
+  {
+    role: 'both',
+    keys: ['how long', 'how long does it take', 'time to donate', 'duration', 'how fast', 'how many minutes'],
+    text: 'The actual blood draw takes about 5–10 minutes, but the whole visit (registration, health check, donation, and a short rest) usually takes around 30–45 minutes. 🕐',
+    suggestions: ['What should I eat before?', 'Is it safe?'],
+  },
+  {
+    role: 'both',
+    keys: ['before donating', 'what to eat before', 'preparation', 'prepare', 'eat before', 'drink before', 'fasting', 'empty stomach', 'what should i do before'],
+    text: 'Before donating: eat a light, iron-rich meal, drink plenty of water, and get a good night\u2019s sleep. Don\u2019t donate on an empty stomach, and avoid alcohol the day before. 🍎',
+    suggestions: ['What should I eat after?', 'Am I eligible?'],
+  },
+  {
+    role: 'both',
+    keys: ['after donating', 'after donation', 'what to do after', 'eat after', 'recover', 'rest after', 'care after'],
+    text: 'After donating, rest for about 15 minutes and have a snack and fluids. Avoid heavy exercise, alcohol, and hot showers for a few hours. Your body replaces the fluid within a day and the red cells within a few weeks. 🍪',
+    suggestions: ['How often can I donate?', 'What should I eat before?'],
+  },
+  {
+    role: 'both',
+    keys: ['benefits', 'advantages', 'is donating good', 'why donate', 'benefit of donating', 'good for health', 'health benefits'],
+    text: 'Donating blood helps save lives, and it may also have health benefits — it provides a free mini health check (blood pressure, haemoglobin), can help reduce iron overload, and stimulates new blood-cell production. ❤️',
+    suggestions: ['Who can receive my blood?', 'How often can I donate?'],
+  },
+  {
+    role: 'both',
+    keys: ['paid', 'get paid', 'money for donating', 'payment for blood', 'sell blood', 'rewards', 'incentive'],
+    text: 'Donation on Redora is voluntary and unpaid — it\u2019s a life-saving act, never a way to earn money. You do get a certificate and recognition on the leaderboard for your donations. 🏆',
+    suggestions: ['How do I donate?', 'What are certificates?'],
+  },
+  {
+    role: 'both',
+    keys: ['tattoo', 'piercing', 'tattoos', 'piercings', 'acupuncture', 'needle'],
+    text: 'If you\u2019ve had a tattoo, piercing, or acupuncture with a non-sterile needle recently, you may need to wait (often a few months) before donating. Redora checks your last donation date and eligibility — when in doubt, check with a doctor. ⏳',
+    suggestions: ['Am I eligible?', 'When can I donate again?'],
+  },
+  {
+    role: 'both',
+    keys: ['sick', 'cold', 'flu', 'fever', 'infection', 'cough', 'ill', 'unwell', 'vomiting'],
+    text: 'If you\u2019re sick with a cold, flu, fever, or any active infection, you should wait until you\u2019re fully recovered (usually about 2 weeks after symptoms clear) before donating. ⚠️',
+    suggestions: ['Am I eligible?', 'When can I donate again?'],
+  },
+  {
+    role: 'both',
+    keys: ['iron', 'low iron', 'anemia', 'haemoglobin', 'hemoglobin', 'hb', 'anemic'],
+    text: 'You need a minimum haemoglobin level (roughly 12.5 g/dL for women and 13 g/dL for men) to donate. If your iron is low or you\u2019re anaemic, you may be deferred — eat iron-rich food and get tested. ⚠️ Always confirm with a doctor.',
+    suggestions: ['What should I eat before?', 'Am I eligible?'],
+  },
+  {
+    role: 'both',
+    keys: ['medicine', 'medication', 'drugs', 'prescription', 'on medication', 'taking medicine', 'antibiotics'],
+    text: 'Some medications may affect your eligibility to donate. If you\u2019re on regular medication or antibiotics, mention it during the health check — it doesn\u2019t always disqualify you, but it must be reviewed. 💊',
+    suggestions: ['Am I eligible?', 'Can I donate if I have a condition?'],
+  },
+  {
+    role: 'both',
+    keys: ['condition', 'disease', 'diabetes', 'blood pressure', 'hypertension', 'heart', 'bp', 'asthma', 'thyroid', 'cancer', 'hiv', 'hepatitis'],
+    text: 'Many chronic conditions are managed and may still allow donation, but some (like recent cancer, or certain blood-borne infections) disqualify donors. Redora follows standard medical screening — always confirm with a doctor whether your condition is eligible. 🩺',
+    suggestions: ['Am I eligible?', 'What are the requirements?'],
+  },
+  {
+    role: 'both',
+    keys: ['pregnant', 'pregnancy', 'breastfeeding', 'lactating', 'new mother', 'postpartum'],
+    text: 'If you are pregnant, you should not donate. After giving birth you typically need to wait a few months (and after breastfeeding stops, a few more) before donating. Always check with your doctor. 🤰',
+    suggestions: ['Am I eligible?', 'What are the requirements?'],
+  },
+  {
+    role: 'both',
+    keys: ['first time', 'first donation', 'first time donor', 'new donor', 'never donated'],
+    text: 'Your first donation is simple: register, complete a short health questionnaire, and have a quick haemoglobin check. Then you donate and rest. The whole thing is usually under 45 minutes — and you\u2019ll feel great knowing you helped save a life! 🌟',
+    suggestions: ['How do I donate?', 'Is it safe?', 'What should I eat before?'],
+  },
+  {
+    role: 'both',
+    keys: ['rare blood', 'rare blood group', 'rarest blood', 'which blood is rare', 'universal donor', 'universal recipient', 'ab negative', 'o negative', 'negative blood'],
+    text: 'In blood donation: O\u2013 is the universal donor (can give to anyone) and AB+ is the universal recipient (can receive from anyone). Rh-negative groups like O\u2013 and AB\u2013 are rarer and especially valuable. 🩸',
+    suggestions: ['Which blood can I receive?', 'How does matching work?'],
+  },
+  {
+    role: 'both',
+    keys: ['plasma', 'platelets', 'platelet', 'apheresis', 'whole blood', 'components', 'red cells'],
+    text: 'Besides whole blood, donated blood can be separated into components — red cells, plasma, and platelets — used to treat different conditions. Apheresis lets you donate a specific component. Redora focuses on whole-blood requests. 🧪',
+    suggestions: ['How does matching work?', 'How much blood is taken?'],
+  },
+  {
+    role: 'both',
+    keys: ['travel', 'travel restrictions', 'traveled', 'travelled', 'foreign travel', 'visit abroad', 'mosquito'],
+    text: 'Recent travel to certain regions may affect your eligibility (for example areas with malaria risk). Mention your travel history during the health screening so the staff can advise you correctly. ✈️',
+    suggestions: ['Am I eligible?', 'What are the requirements?'],
+  },
+  {
+    role: 'both',
+    keys: ['what happens to my blood', 'where does my blood go', 'who gets my blood', 'how is my blood used', 'uses of blood'],
+    text: 'Your blood goes to a hospital or blood bank and may be given to accident victims, surgical patients, people with anaemia or cancer, and newborns. A single donation can help up to three people when split into components. ❤️',
+    suggestions: ['How does matching work?', 'What are the benefits?'],
+  },
+  {
+    role: 'both',
+    keys: ['not eligible', 'deferred', 'rejected', 'turned away', 'temporary deferral', 'why was i deferred', 'when can i donate again', 'next eligible date'],
+    text: 'If you\u2019re deferred it\u2019s usually temporary (low iron, recent illness, recent tattoo, recent travel, or not enough gap since your last donation). Redora shows your next eligible date on your Journey & Donations page. 📅',
+    suggestions: ['When can I donate again?', 'Am I eligible?'],
   },
 ]
 
@@ -301,85 +403,23 @@ function findReply(text, role) {
 }
 
 const FALLBACK_DONOR = [
-  "I can help you with donating on Redora — eligibility, matching requests, live tracking, certificates, appointments, and the leaderboard. Try asking something like ‘Am I eligible to donate?’ or ‘How do I donate?’.",
-  'I can answer questions about donating, eligibility, live tracking, certificates, and notifications. Ask me about the app to get started.',
+  "I don\u2019t have that exact answer saved, but I\u2019m happy to help with donating on Redora — eligibility, weight & health requirements, matching requests, live tracking, certificates, appointments, and the leaderboard. Try rephrasing, or ask \u2018Am I eligible to donate?\u2019 or \u2018How do I donate?\u2019.",
+  'I can answer most questions about donating, eligibility, weight, health, live tracking, certificates, and notifications. Try asking me directly \u2014 e.g. \u2018How much should I weigh?\u2019 or \u2018How often can I donate?\u2019.',
 ]
 
 const FALLBACK_PATIENT = [
-  "I can help you get blood on Redora — creating requests, finding donors, live tracking, nearby donors, and emergency needs. Try asking something like ‘How do I request blood?’ or ‘Request blood’.",
-  'I can answer questions about blood requests, matching, live tracking, nearby donors, and notifications. Ask me about the app to get started.',
+  "I don\u2019t have that exact answer saved, but I can help you get blood on Redora — creating requests, finding donors, live tracking, nearby donors, and emergency needs. Try rephrasing, or ask \u2018How do I request blood?\u2019 or \u2018Request blood\u2019.",
+  'I can answer most questions about blood requests, matching, live tracking, nearby donors, and notifications. Try asking me directly \u2014 e.g. \u2018How do I post a request?\u2019 or \u2018Who can receive my blood?\u2019.',
 ]
 
 const FALLBACK_GUEST = [
-  "I can help with Redora features like blood requests, donor eligibility, matching, tracking, and certificates. Try asking something like ‘How does matching work?’ or ‘Request blood’.",
-  'I can answer questions about donating, eligibility, live tracking, requests, and notifications. Ask me about the app or say "Request blood" to get started.',
+  "I don\u2019t have that exact answer saved, but I can help with Redora — blood requests, donor eligibility, weight & health requirements, matching, tracking, and certificates. Try rephrasing, or ask \u2018How does matching work?\u2019 or \u2018What are the donation requirements?\u2019.",
+  'I can answer most questions about donating, eligibility, weight, live tracking, requests, and notifications. Try asking me directly \u2014 e.g. \u2018How much should I weigh?\u2019 or \u2018How do I donate?\u2019.',
 ]
 
 /* ------------------------------------------------------------------ *
- *  Blood-request wizard steps (mirrors the RequestBlood form).
+ *  Blood-request file extract -> pre-fill (no step-by-step wizard).
  * ------------------------------------------------------------------ */
-const WIZARD = [
-  { key: 'patientName', ask: 'Who is the patient? Please tell me the patient\u2019s full name.', validate: (v) => (v.trim() ? null : 'Please tell me the patient\u2019s name.') },
-  { key: 'phone', ask: 'What\u2019s a contact phone number so the donor can reach the patient?', validate: (v) => (/[\d]{7,}/.test(v) ? null : 'Please enter a valid phone number (at least 7 digits).') },
-  { key: 'bloodGroup', ask: 'Which blood group is needed? (A+, A-, B+, B-, AB+, AB-, O+, O-)', validate: (v) => (BLOOD_GROUPS.includes(v.toUpperCase()) || /(a|b|ab|o)\s*(positive|negative|plus|minus|\+|-)/i.test(v) ? null : 'Please say or type a valid blood group like O+ or A-.') },
-  { key: 'units', ask: 'How many units of blood are needed? (usually 1)', validate: (v) => (/^[1-9]\d*$/.test(v.trim()) ? null : 'Please tell me a whole number of units, like 1 or 2.') },
-  { key: 'hospital', ask: 'Which hospital is the patient admitted to?', validate: (v) => (v.trim() ? null : 'Please tell me the hospital name.') },
-  { key: 'location', ask: 'Where is the hospital located? You can type the area & city, or tap \u201cUse my live location\u201d below to share your current position.', validate: (v) => (v && (v.trim() || v.label) ? null : 'Please type the location or use the live location button.') },
-  { key: 'urgency', ask: 'How urgent is this? Say \u201cEmergency\u201d or \u201cNormal\u201d.', validate: (v) => (/emergency|urgent|normal/i.test(v) ? null : 'Please say Emergency or Normal.') },
-  { key: 'notes', ask: 'Any notes for the donors? (say \u201cskip\u201d or \u201cnone\u201d if not)', validate: () => null },
-]
-
-function normalizeBloodGroup(v) {
-  const key = v.toUpperCase().replace(/\s+/g, ' ').trim()
-  if (BLOOD_GROUPS.includes(key)) return key
-  const map = {
-    'A POSITIVE': 'A+', 'A PLUS': 'A+', 'A NEGATIVE': 'A-', 'A MINUS': 'A-',
-    'B POSITIVE': 'B+', 'B PLUS': 'B+', 'B NEGATIVE': 'B-', 'B MINUS': 'B-',
-    'AB POSITIVE': 'AB+', 'AB PLUS': 'AB+', 'AB NEGATIVE': 'AB-', 'AB MINUS': 'AB-',
-    'O POSITIVE': 'O+', 'O PLUS': 'O+', 'O NEGATIVE': 'O-', 'O MINUS': 'O-',
-  }
-  return map[key] || key
-}
-
-function normalizeWizardValue(key, value) {
-  if (key === 'bloodGroup') return normalizeBloodGroup(value)
-  if (key === 'urgency') return /emergency|urgent/i.test(value) ? 'emergency' : 'normal'
-  if (key === 'notes' && /^(skip|none|no|n\/a)$/i.test(value.trim())) return ''
-  return value.trim()
-}
-
-// Translate the user's answer into English purely for validation/normalization,
-// so speaking Hindi/Tamil/etc. still fills the form correctly. Returns the
-// English version plus the raw text.
-async function enForValidation(text, key, activeLang) {
-  if (key === 'notes') return { en: text, raw: text } // never translate free-form notes
-  const raw = text
-  if (activeLang === 'en') return { en: raw, raw }
-  try {
-    const { data } = await api.post('/translate', { text, target: 'en' })
-    return { en: data?.translatedText || raw, raw }
-  } catch {
-    return { en: raw, raw }
-  }
-}
-
-// Detect the language of the user's typed/spoken text from its script, so AURA
-// replies in the same language they used — no need to touch the dropdown.
-function detectLang(text) {
-  const s = String(text || '')
-  const scripts = [
-    { re: /[\u0B80-\u0BFF]/, code: 'ta' }, // Tamil
-    { re: /[\u0C00-\u0C7F]/, code: 'te' }, // Telugu
-    { re: /[\u0980-\u09FF]/, code: 'bn' }, // Bengali
-    { re: /[\u0A80-\u0AFF]/, code: 'gu' }, // Gujarati
-    { re: /[\u0C80-\u0CFF]/, code: 'kn' }, // Kannada
-    { re: /[\u0D00-\u0D7F]/, code: 'ml' }, // Malayalam
-    { re: /[\u0B00-\u0B7F]/, code: 'or' }, // Odia
-    { re: /[\u0900-\u097F]/, code: 'hi' }, // Devanagari (Hindi/Marathi)
-  ]
-  for (const sc of scripts) if (sc.re.test(s)) return sc.code
-  return null
-}
 
 function speak(text, { rate = 1, lang = 'en' } = {}) {
   if (typeof window === 'undefined') return
@@ -417,34 +457,18 @@ export default function AuraChatbot({ autoOpen = false }) {
   const [typing, setTyping] = useState(false)
   const [voiceOn, setVoiceOn] = useState(false)
   const [listening, setListening] = useState(false)
-  const [lang, setLang] = useState('en')
-  const langRef = useRef('en') // mirror of `lang` that's always current (no render lag)
-  langRef.current = lang
-  const [wizard, setWizard] = useState(null) // { step, collected, locationText, liveCoords }
-  const [liveLoading, setLiveLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [pendingUpload, setPendingUpload] = useState(null) // { fileName, fields }
+  const fileRef = useRef(null)
   const messagesEndRef = useRef(null)
   const recogRef = useRef(null)
   const sessionStartedRef = useRef(false)
   const historyRef = useRef([]) // multi-turn context sent to the LLM
 
-  const currentLang = LANGS.find((l) => l.code === lang)?.voice || lang
-  const langLabel = LANGS.find((l) => l.code === lang)?.label || 'English'
-
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   useEffect(() => {
     scrollToBottom()
   }, [messages, typing, open])
-
-  function changeLang(code) {
-    setLang(code)
-    // Greet in the newly chosen language so the switch is obvious.
-    if (voiceOn) window.speechSynthesis?.cancel()
-    const hello =
-      code === 'en'
-        ? `I'll now answer in English. How can I help you today?`
-        : `I'll now answer in ${LANGS.find((l) => l.code === code)?.label?.split(' ')[0] || 'your language'}. How can I help you today?`
-    pushBot(hello, ['What can you do?', 'How does matching work?', 'Request blood'], code)
-  }
 
   function toggleOpen() {
     const next = !open
@@ -452,7 +476,9 @@ export default function AuraChatbot({ autoOpen = false }) {
     if (next && !sessionStartedRef.current) {
       sessionStartedRef.current = true
       const greeting =
-        "Hi, I'm AURA 👋 Your Redora AI assistant. I can answer any question about the platform, and I can even create a blood request for you by voice or text. How can I help you today?"
+        user?.role === 'patient'
+          ? "Hi, I'm AURA 👋 Your Redora AI assistant. I can answer any question about the platform, and I can create a blood request for you by reading a file you upload (PDF, image, or text) — it auto-fills the request form. Just tap the paperclip 📎 to attach a prescription or hospital note. How can I help you today?"
+          : "Hi, I'm AURA 👋 Your Redora AI assistant. I can answer any question about the platform, and I can help you donate, check eligibility, and track your journeys. How can I help you today?"
       pushBot(greeting, [
         'What can you do?',
         user?.role === 'donor' ? 'Am I eligible to donate?' : 'Request blood',
@@ -462,11 +488,11 @@ export default function AuraChatbot({ autoOpen = false }) {
     }
   }
 
-  function pushBot(text, suggestions = [], langOverride = null) {
+  function pushBot(text, suggestions = []) {
     const safe = String(text ?? '')
     setMessages((m) => [...m, { from: 'bot', text: safe, suggestions }])
     historyRef.current = [...historyRef.current, { from: 'bot', text: safe }].slice(-14)
-    if (voiceOn) speak(safe.replace(/[^\w\s,.;:'?!@#&()%-\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0B00-\u0B7F\u0A80-\u0AFF\u0C80-\u0CFF\u0D00-\u0D7F\u0960-\u09FF]/g, ' '), { lang: langOverride || currentLang })
+    if (voiceOn) speak(safe.replace(/[^\w\s,.;:'?!@#&()%-]/g, ' '))
   }
 
   function pushUser(text) {
@@ -480,7 +506,7 @@ export default function AuraChatbot({ autoOpen = false }) {
       const next = !prev
       if (next) {
         const last = [...messages].reverse().find((m) => m.from === 'bot')
-        if (last) speak(last.text.replace(/[^\w\s,.;:'?!@#&()%-\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0B00-\u0B7F\u0A80-\u0AFF\u0C80-\u0CFF\u0D00-\u0D7F\u0960-\u09FF]/g, ' '), { lang: currentLang })
+        if (last) speak(last.text.replace(/[^\w\s,.;:'?!@#&()%-]/g, ' '))
       } else {
         window.speechSynthesis?.cancel()
       }
@@ -502,7 +528,7 @@ export default function AuraChatbot({ autoOpen = false }) {
     /* Stop any ongoing bot speech before capturing the user's voice. */
     if (window.speechSynthesis) window.speechSynthesis.cancel()
     const recog = new SR()
-    recog.lang = `${currentLang}-IN`
+    recog.lang = 'en-IN'
     recog.interimResults = true
     recog.continuous = false
     recog.maxAlternatives = 3
@@ -548,52 +574,96 @@ export default function AuraChatbot({ autoOpen = false }) {
     setListening(false)
   }
 
-  /* ------------------------------- live location ------------------------------ */
-  async function useLiveLocation() {
-    if (!navigator.geolocation) {
-      pushBot('Live location isn\u2019t supported in this browser. Please type the hospital location instead. 📍')
-      return
-    }
-    setLiveLoading(true)
+  /* ------------------------- file upload -> extract -------------------------- */
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = String(reader.result || '')
+        resolve(dataUrl.split(',')[1] || '')
+      }
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+  }
+
+  function summarizeFields(f) {
+    const parts = []
+    if (f.patientName) parts.push(`👤 ${f.patientName}`)
+    if (f.phone) parts.push(`📞 ${f.phone}`)
+    if (f.bloodGroup) parts.push(`🩸 ${f.bloodGroup}`)
+    if (f.units) parts.push(`${f.units} unit${Number(f.units) > 1 ? 's' : ''}`)
+    if (f.hospital) parts.push(`🏥 ${f.hospital}`)
+    if (f.location) parts.push(`📍 ${f.location}`)
+    if (f.urgency) parts.push(f.urgency === 'emergency' ? '🚨 Emergency' : '🕐 Normal')
+    if (f.notes) parts.push(`📝 ${f.notes}`)
+    return parts.join(' · ')
+  }
+
+  function hasAnyField(f) {
+    return !!(
+      f &&
+      Object.keys(f).some(
+        (k) => k !== 'urgency' && String(f[k] || '').trim()
+      )
+    )
+  }
+
+  async function onFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || uploading) return
+    setUploading(true)
+    pushUser(`📎 ${file.name}`)
     try {
-      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej))
-      const { latitude, longitude } = pos.coords
-      const { data } = await api.get('/geo/reverse', { params: { lat: latitude, lng: longitude } })
-      const label = data.result?.label || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-      setWizard((w) => ({ ...w, locationText: label, liveCoords: { lat: latitude, lng: longitude, label } }))
-      pushUser('📍 Using my live location')
-      pushBot(`Got it — your location: ${label}. Is that the right area? If not, just type the correct hospital location.`, [
-        'Yes, that\u2019s right',
-        'No, let me type it',
-      ])
-    } catch {
-      pushBot('I couldn\u2019t access your location. Please type the hospital area & city instead. 📍')
-    } finally {
-      setLiveLoading(false)
+      const base64 = await fileToBase64(file)
+      const { data } = await api.post('/chat/extract', {
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        base64,
+      })
+      const fields = data?.fields || {}
+      setUploading(false)
+      if (!hasAnyField(fields)) {
+        pushBot(
+          `I couldn\u2019t read useful request details from "${file.name}". It may be unreadable or not contain blood-request info. You can try another file (PDF, image, or text), or just type the details. 📄`,
+          ['Request blood', 'What can you do?']
+        )
+        return
+      }
+      const summary = summarizeFields(fields)
+      if (user?.role !== 'patient') {
+        pushBot(
+          `I read "${file.name}" and found: ${summary || 'nothing relevant'}. To pre-fill a blood request from this, please log in as a patient. 💛`
+        )
+        return
+      }
+      setPendingUpload({ fileName: file.name, fields })
+      pushBot(
+        `I read "${file.name}" and pulled out these details:\n\n${summary}\n\nSay \u201cconfirm\u201d to pre-fill the New Blood Request form with these, or \u201ccancel\u201d to ignore the file. You can correct any field on the form before posting.`,
+        ['Confirm', 'Cancel']
+      )
+    } catch (err) {
+      console.error('[AuraChatbot] file extract failed:', err)
+      setUploading(false)
+      pushBot('I couldn\u2019t process that file. Please try again, or type the details manually.')
     }
   }
 
-  /* --------------------------- wizard submission ----------------------------- */
-  async function confirmWizard() {
-    const w = wizard
-    const { patientName, phone, bloodGroup, units, hospital, urgency, notes } = w.collected
-    const locationText = w.locationText || w.collected.location || ''
-    setWizard(null)
-    // Pre-fill the New Blood Request form with everything AURA collected so the
-    // patient can review, correct any field, and post from there. The actual
-    // request is created on the form page (patient side only).
+  function confirmUpload() {
+    const f = pendingUpload?.fields || {}
+    setPendingUpload(null)
     navigate('/request-blood', {
       state: {
         prefill: {
-          patientName,
-          phone,
-          bloodGroup,
-          units: Number(units) || 1,
-          hospital,
-          location: locationText,
-          urgency,
-          notes: notes || '',
-          liveCoords: w.liveCoords || null,
+          patientName: f.patientName || '',
+          phone: f.phone || '',
+          bloodGroup: f.bloodGroup || '',
+          units: Number(f.units) || 1,
+          hospital: f.hospital || '',
+          location: f.location || '',
+          urgency: f.urgency === 'emergency' ? 'emergency' : 'normal',
+          notes: f.notes || '',
         },
       },
     })
@@ -608,61 +678,32 @@ export default function AuraChatbot({ autoOpen = false }) {
       setInput('')
       pushUser(text)
 
-      /* If a wizard is active, treat this as the answer to the current question. */
-      if (wizard) {
-        const current = WIZARD[wizard.step]
-        const isAffirmativeLocation = current.key === 'location' && /yes|that'?s right|correct/i.test(text)
-        if (isAffirmativeLocation && wizard.liveCoords) {
-          await proceedWizard()
-          return
-        }
-        if (/^yes$/i.test(text.trim()) && wizard.step === 0) {
-          await proceedWizard()
-          return
-        }
-        const err = current.validate(text)
-        if (err) {
-          pushBot(err)
-          return
-        }
-        const value = normalizeWizardValue(current.key, text)
-        setWizard((w) => ({
-          ...w,
-          collected: { ...w.collected, [current.key]: value },
-          locationText: current.key === 'location' ? value : w.locationText,
-        }))
-        await proceedWizard()
-        return
-      }
-
       setTyping(true)
-      /* Auto-detect the language the user typed/spoke and switch to it, so AURA
-         always answers in the same language. `langRef` is updated immediately
-         so the fallback translators don't lag behind the render. */
-      const detected = detectLang(text)
-      if (detected && detected !== lang) {
-        setLang(detected)
-        langRef.current = detected
-      }
-      const replyLang = langRef.current
-
-      /* Allow re-entering the wizard from any message (patient side only). */
-      if (user?.role === 'patient' && /request blood|need blood|post request|start a new request|start$|yes$|create request/i.test(text)) {
-        startWizard()
-        setTyping(false)
+      // Fast path: answer instantly from the built-in KB when it matches (just
+      // like a rule-based assistant), so common questions get an immediate
+      // reply instead of waiting on the network every time. Gemini (the slow
+      // external call) is only used when the local KB has no match.
+      const role = user?.role || 'guest'
+      const instant = findReply(text, role)
+      if (instant) {
+        setTimeout(() => {
+          try {
+            pushBot(instant.text, instant.suggestions || [])
+          } finally {
+            setTyping(false)
+          }
+        }, 300)
         return
       }
 
       // Real conversational AI: ask the backend (Gemini free tier). It returns
       // { source: 'gemini', reply, suggestions, action } or { source: 'rule' }
-      // when no API key / on failure. In that case we fall back to the local KB
-      // and translate it if the user picked a non-English language.
+      // when no API key / on failure. In that case we fall back to the local KB.
       let ai = null
       try {
         const { data } = await api.post('/chat', {
           message: text,
           history: historyRef.current,
-          lang: replyLang,
           profile: user
             ? { role: user.role, bloodGroup: user.bloodGroup || '' }
             : null,
@@ -678,22 +719,16 @@ export default function AuraChatbot({ autoOpen = false }) {
           if (entry) {
             const suggestions = entry.suggestions || []
             pushBot(entry.reply, suggestions)
-            if (entry.action === 'start-wizard') {
-              setTimeout(() => startWizard(), 400)
-            } else if (entry.action === 'navigate' && entry.actionValue) {
+            if (entry.action === 'navigate' && entry.actionValue) {
               navigate(entry.actionValue)
             }
           } else {
             // Rule-based fallback (no key / Gemini down).
-            const role = user?.role || 'guest'
             const localEntry = findReply(text, role)
             let suggestions = []
             if (localEntry) {
               suggestions = localEntry.suggestions || []
-              deliverReply(localEntry.text, suggestions)
-              if (localEntry.startWizard) {
-                setTimeout(() => startWizard(), 400)
-              }
+              pushBot(localEntry.text, suggestions)
             } else {
               const pool = role === 'donor' ? FALLBACK_DONOR : role === 'patient' ? FALLBACK_PATIENT : FALLBACK_GUEST
               const fb = pool[Math.floor(Math.random() * pool.length)]
@@ -703,7 +738,7 @@ export default function AuraChatbot({ autoOpen = false }) {
                   : role === 'patient'
                   ? ['Request blood', 'How does matching work?', 'Nearby donors']
                   : ['What can you do?', 'Request blood', 'How does matching work?']
-              deliverReply(fb, suggestions)
+              pushBot(fb, suggestions)
             }
           }
         } finally {
@@ -717,103 +752,21 @@ export default function AuraChatbot({ autoOpen = false }) {
     }
   }
 
-  // Show a rule-based reply, translating it into the active language when the
-  // LLM isn't available so AURA stays multilingual even without a key.
-  async function deliverReply(text, suggestions) {
-    const target = langRef.current
-    if (target === 'en') {
-      pushBot(text, suggestions)
-      return
-    }
-    setTyping(true)
-    try {
-      const { data } = await api.post('/translate', { text, target })
-      const translated = data?.translatedText || text
-      pushBot(translated, suggestions)
-    } catch {
-      pushBot(text, suggestions)
-    } finally {
-      setTyping(false)
-    }
-  }
-
-  // Push a bot message, translating it into the active language when it isn't
-  // English. Used for wizard questions and greetings so AURA speaks the chosen
-  // language end-to-end (voice and text).
-  async function pushLocal(text, suggestions = [], code = null) {
-    const target = code || langRef.current
-    if (target === 'en') {
-      pushBot(text, suggestions, code)
-      return
-    }
-    try {
-      const { data } = await api.post('/translate', { text, target })
-      pushBot(data?.translatedText || text, suggestions, code)
-    } catch {
-      pushBot(text, suggestions, code)
-    }
-  }
-
-  function startWizard() {
-    if (!user) {
-      pushBot('To create a blood request you need to be logged in as a patient. Please log in first, then say \u201cRequest blood\u201d again. 🔒')
-      return
-    }
-    // Blood requests are created on the patient side only — donors never see
-    // the request wizard.
-    if (user.role !== 'patient') {
-      pushBot('Blood requests are created on the patient side. As a donor you accept matching requests, so I can help with your eligibility, donations, certificates, and appointments instead. 💛', [
-        'Am I eligible to donate?',
-        'How do I donate?',
-      ])
-      return
-    }
-    setWizard({ step: 0, collected: {}, locationText: '', liveCoords: null })
-    const first = WIZARD[0]
-    pushLocal(first.ask)
-  }
-
-  async function proceedWizard() {
-    const w = wizard
-    const nextStep = w.step + 1
-    if (nextStep >= WIZARD.length) {
-      const { patientName, phone, bloodGroup, units, hospital, urgency, notes } = w.collected
-      const locationText = w.locationText || (w.collected.hospital ? '' : '')
-      pushLocal(
-        `Let\u2019s confirm the request: 👤 Patient: ${patientName} · 📞 ${phone} · 🩸 ${bloodGroup}, ${units} unit${Number(units) > 1 ? 's' : ''} · 🏥 ${hospital} · 📍 ${locationText || 'your location'} · ⚡ ${urgency === 'emergency' ? '🚨 Emergency' : '🕐 Normal'}${notes ? ` · 📝 ${notes}` : ''}\n\nSay \u201cconfirm\u201d to post it, or \u201ccancel\u201d to start over.`,
-        ['Confirm', 'Cancel']
-      )
-      setWizard({ ...w, step: nextStep })
-      return
-    }
-    const next = WIZARD[nextStep]
-    setWizard({ ...w, step: nextStep })
-    pushLocal(next.ask)
-  }
-
-  /* Let confirm/cancel work when the wizard is on its final step. */
-  async function handleWizardFinal(text) {
-    if (/confirm|yes|post|submit|go ahead/i.test(text)) {
-      await confirmWizard()
-      return true
-    }
-    if (/cancel|no|stop|start over/i.test(text)) {
-      setWizard(null)
-      pushBot('Okay, I\u2019ve cancelled the request. Say \u201cRequest blood\u201d whenever you\u2019re ready. 💛', ['Request blood'])
-      return true
-    }
-    return false
-  }
-
-  /* Wrapped handleSend that also processes the final wizard step. */
+  /* Wrapped handleSend that also processes the pending file upload. */
   async function handleSendFinal(text) {
     const trimmed = (text ?? '').trim()
     if (!trimmed) return
     try {
-      if (wizard && wizard.step >= WIZARD.length) {
-        const handled = await handleWizardFinal(trimmed)
-        if (handled) {
+      if (pendingUpload) {
+        if (/confirm|yes|post|submit|go ahead|looks good|fill the form|pre-fill|prefill/i.test(trimmed)) {
           setInput('')
+          confirmUpload()
+          return
+        }
+        if (/cancel|no|stop|start over|ignore|dismiss/i.test(trimmed)) {
+          setInput('')
+          setPendingUpload(null)
+          pushBot('Okay, I ignored the file. You can upload another file anytime with the paperclip. 📄')
           return
         }
       }
@@ -851,19 +804,6 @@ export default function AuraChatbot({ autoOpen = false }) {
               <span>Redora AI Assistant</span>
             </div>
             <div className="aura-header-actions">
-              <select
-                className="aura-lang"
-                value={lang}
-                onChange={(e) => changeLang(e.target.value)}
-                title={`Language: ${langLabel}`}
-                aria-label="Select language"
-              >
-                {LANGS.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
               <button
                 className={`aura-voice-toggle ${voiceOn ? 'on' : ''}`}
                 onClick={toggleVoice}
@@ -883,7 +823,7 @@ export default function AuraChatbot({ autoOpen = false }) {
                     <p>{m.text}</p>
                     <button
                       className="aura-say"
-                      onClick={() => speak(m.text.replace(/[^\w\s,.;:'?!@#&()%-]/g, ''), { lang: currentLang })}
+                      onClick={() => speak(m.text.replace(/[^\w\s,.;:'?!@#&()%-]/g, ''))}
                       title="Hear this reply"
                     >
                       🔊
@@ -906,22 +846,6 @@ export default function AuraChatbot({ autoOpen = false }) {
               ),
             )}
 
-            {/* Live location button shown during the location step */}
-            {wizard && wizard.step === 5 && !wizard.locationText && (
-              <div className="aura-msg bot">
-                <div className="aura-msg-avatar">🤖</div>
-                <div className="aura-bubble">
-                  <button
-                    className="aura-chip live"
-                    onClick={useLiveLocation}
-                    disabled={liveLoading}
-                  >
-                    {liveLoading ? 'Locating…' : '📍 Use my live location'}
-                  </button>
-                </div>
-              </div>
-            )}
-
             {typing && (
               <div className="aura-msg bot">
                 <div className="aura-msg-avatar">🤖</div>
@@ -936,6 +860,23 @@ export default function AuraChatbot({ autoOpen = false }) {
           </div>
 
           <div className="aura-input-row">
+            {user?.role === 'patient' && (
+              <button
+                type="button"
+                className="aura-attach"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                title={uploading ? 'Reading file…' : 'Upload a file to auto-fill (any type)'}
+              >
+                {uploading ? '⏳' : '📎'}
+              </button>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              style={{ display: 'none' }}
+              onChange={onFile}
+            />
             <button
               className={`aura-mic ${listening ? 'on' : ''}`}
               onClick={startListening}
@@ -948,9 +889,9 @@ export default function AuraChatbot({ autoOpen = false }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendFinal(input)}
-              placeholder={listening ? 'Listening…' : 'Ask AURA or type…'}
+              placeholder={uploading ? 'Reading your file…' : listening ? 'Listening…' : 'Ask AURA or type…'}
             />
-            <button className="aura-send" onClick={() => handleSendFinal(input)}>
+            <button className="aura-send" onClick={() => handleSendFinal(input)} disabled={uploading}>
               ➤
             </button>
           </div>

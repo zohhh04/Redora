@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 import LiveMap from '../components/LiveMap'
 import MessagePanel from '../components/MessagePanel'
-import VoiceControls from '../components/VoiceControls'
 import { useVoiceAnnounce } from '../hooks/useVoiceAnnounce'
 
 const LINEAR_STAGES = [
@@ -92,7 +91,7 @@ export default function DonorTracking() {
   const watcherRef = useRef(null)
   const routeRef = useRef(null)
 
-  const { lang, setLang, voiceOn, toggleVoice, announce } = useVoiceAnnounce()
+  const { voiceOn, toggleVoice, announce } = useVoiceAnnounce()
   const lastSpokenRef = useRef(null)
 
   // Speak each journey stage in the chosen language when it changes (or when
@@ -353,7 +352,15 @@ export default function DonorTracking() {
           <h2>My Donation Journey</h2>
           <p className="hint">Your blood donation trip to the hospital, step by step</p>
         </div>
-        <VoiceControls lang={lang} setLang={setLang} voiceOn={voiceOn} toggleVoice={toggleVoice} />
+        <button
+          type="button"
+          className={`voice-toggle ${voiceOn ? 'on' : ''}`}
+          onClick={toggleVoice}
+          title={voiceOn ? 'Turn off voice updates' : 'Turn on voice updates'}
+          aria-label={voiceOn ? 'Mute voice updates' : 'Enable voice updates'}
+        >
+          {voiceOn ? '🔊' : '🔇'}
+        </button>
         {!cancelled && (
           <span className={`live-badge ${completed ? 'live-green' : ''}`}>
             <span className="live-dot"></span>

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, Link, useParams, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { ThemeProvider } from './context/ThemeContext'
 import api from './api/axios'
 import Navbar from './components/Navbar'
 import NotificationPopup from './components/NotificationPopup'
@@ -238,163 +237,161 @@ function PatientJourneyWatcher() {
 export default function App() {
   const [chatKey, setChatKey] = useState(0)
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <Navbar />
-        <NotificationPopup />
-        <ChatbotBoundary onRestart={() => setChatKey((k) => k + 1)}>
-          <AuraChatbot key={chatKey} autoOpen={chatKey > 0} />
-        </ChatbotBoundary>
-        <PatientJourneyWatcher />
-        <div className="app">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/verify-otp" element={<VerifyOtp />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/logout" element={<Logout />} />
-            <Route
-              path="/profile"
-              element={
-                <Protected>
-                  <DonorProfile />
-                </Protected>
-              }
-            />
-            <Route
-              path="/donations"
-              element={
-                <Protected>
-                  <DonationsRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/request-blood"
-              element={
-                <Protected>
-                  <RequestBloodRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/my-requests"
-              element={
-                <Protected>
-                  <PatientRequestsRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/requests"
-              element={
-                <Protected>
-                  <RequestsRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/requests/:id/matches"
-              element={
-                <Protected>
-                  <MatchesRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/requests/:id/nearby"
-              element={
-                <Protected>
-                  <NearbyDonorsRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/search-donors"
-              element={
-                <Protected>
-                  <SearchDonorsRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/journey"
-              element={
-                <Protected>
-                  <JourneyRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/tracking/:id"
-              element={
-                <Protected>
-                  <TrackingRedirect />
-                </Protected>
-              }
-            />
-            <Route
-              path="/tracking/donor/:id"
-              element={
-                <Protected>
-                  <DonorTrackingRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/tracking/patient/:id"
-              element={
-                <Protected>
-                  <PatientTrackingRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/certificate/:id"
-              element={
-                <Protected>
-                  <CertificateRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/notifications"
-              element={
-                <Protected>
-                  <NotificationsRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/leaderboard"
-              element={
-                <Protected>
-                  <LeaderboardRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/community"
-              element={
-                <Protected>
-                  <CommunityRoute />
-                </Protected>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <Protected>
-                  <Dashboard />
-                </Protected>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <Navbar />
+      <NotificationPopup />
+      <ChatbotBoundary onRestart={() => setChatKey((k) => k + 1)}>
+        <AuraChatbot key={chatKey} autoOpen={chatKey > 0} />
+      </ChatbotBoundary>
+      <PatientJourneyWatcher />
+      <div className="app">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/verify-otp" element={<VerifyOtp />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/logout" element={<Logout />} />
+          <Route
+            path="/profile"
+            element={
+              <Protected>
+                <DonorProfile />
+              </Protected>
+            }
+          />
+          <Route
+            path="/donations"
+            element={
+              <Protected>
+                <DonationsRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/request-blood"
+            element={
+              <Protected>
+                <RequestBloodRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/my-requests"
+            element={
+              <Protected>
+                <PatientRequestsRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/requests"
+            element={
+              <Protected>
+                <RequestsRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/requests/:id/matches"
+            element={
+              <Protected>
+                <MatchesRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/requests/:id/nearby"
+            element={
+              <Protected>
+                <NearbyDonorsRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/search-donors"
+            element={
+              <Protected>
+                <SearchDonorsRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/journey"
+            element={
+              <Protected>
+                <JourneyRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/tracking/:id"
+            element={
+              <Protected>
+                <TrackingRedirect />
+              </Protected>
+            }
+          />
+          <Route
+            path="/tracking/donor/:id"
+            element={
+              <Protected>
+                <DonorTrackingRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/tracking/patient/:id"
+            element={
+              <Protected>
+                <PatientTrackingRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/certificate/:id"
+            element={
+              <Protected>
+                <CertificateRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <Protected>
+                <NotificationsRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/leaderboard"
+            element={
+              <Protected>
+                <LeaderboardRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/community"
+            element={
+              <Protected>
+                <CommunityRoute />
+              </Protected>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <Protected>
+                <Dashboard />
+              </Protected>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </AuthProvider>
   )
 }

@@ -1,6 +1,5 @@
 const Message = require("../models/Message")
 const BloodRequest = require("../models/BloodRequest")
-const { translateText } = require("../utils/translate")
 
 const canAccess = async (request, user) => {
   const isPatient = request.patient.toString() === user._id.toString()
@@ -17,26 +16,19 @@ const getMessages = async (req, res) => {
       return res.status(403).json({ message: "Not authorized" })
     }
 
-    const targetLang = (req.query.lang || "").toLowerCase().trim() || "en"
+    const targetLang = "en"
 
     const messages = await Message.find({ request: request._id })
       .sort({ createdAt: 1 })
       .populate("from", "name role")
 
-    // Auto-translate each message into the requesting user's chosen language.
-    // The original text is always kept; the reader can flip back to it.
-    const translated = await Promise.all(
-      messages.map(async (m) => {
-        const t = await translateText(m.text, targetLang)
-        return {
-          ...m.toObject(),
-          originalText: m.text,
-          text: t.isTranslated ? t.translatedText : m.text,
-          translated: t.isTranslated,
-          detectedLang: t.detectedLang,
-        }
-      })
-    )
+    const translated = messages.map((m) => ({
+      ...m.toObject(),
+      originalText: m.text,
+      text: m.text,
+      translated: false,
+      detectedLang: "en",
+    }))
 
     res.json({ messages: translated, lang: targetLang })
   } catch (error) {

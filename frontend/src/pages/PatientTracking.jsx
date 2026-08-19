@@ -5,7 +5,6 @@ import api from '../api/axios'
 import CallPanel from '../components/CallPanel'
 import LiveMap from '../components/LiveMap'
 import MessagePanel from '../components/MessagePanel'
-import VoiceControls from '../components/VoiceControls'
 import { useVoiceAnnounce } from '../hooks/useVoiceAnnounce'
 
 const LINEAR_STAGES = [
@@ -76,7 +75,7 @@ export default function PatientTracking() {
   const [lastSync, setLastSync] = useState(null)
   const [eta, setEta] = useState(null)
 
-  const { lang, setLang, voiceOn, toggleVoice, announce } = useVoiceAnnounce()
+  const { voiceOn, toggleVoice, announce } = useVoiceAnnounce()
   const lastSpokenRef = useRef(null)
 
   // Speak each journey stage in the chosen language when it changes (or when
@@ -251,7 +250,15 @@ export default function PatientTracking() {
             {donor ? `Follow ${donor.name} until they reach the hospital` : 'Waiting for a donor to accept this request'}
           </p>
         </div>
-        <VoiceControls lang={lang} setLang={setLang} voiceOn={voiceOn} toggleVoice={toggleVoice} />
+        <button
+          type="button"
+          className={`voice-toggle ${voiceOn ? 'on' : ''}`}
+          onClick={toggleVoice}
+          title={voiceOn ? 'Turn off voice updates' : 'Turn on voice updates'}
+          aria-label={voiceOn ? 'Mute voice updates' : 'Enable voice updates'}
+        >
+          {voiceOn ? '🔊' : '🔇'}
+        </button>
         {!cancelled && (
           <span className={`live-badge ${completed ? 'live-green' : ''}`}>
             <span className="live-dot"></span>

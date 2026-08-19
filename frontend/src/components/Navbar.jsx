@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import ThemeToggle from './ThemeToggle'
 import api from '../api/axios'
 
 export default function Navbar() {
@@ -130,7 +129,6 @@ export default function Navbar() {
       </div>
 
       <div className="nav-tools">
-        <ThemeToggle />
         <button
           type="button"
           className={`nav-burger ${menuOpen ? 'open' : ''}`}
