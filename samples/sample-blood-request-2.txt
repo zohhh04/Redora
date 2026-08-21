@@ -1,0 +1,16 @@
+BLOOD REQUEST — PATIENT INTAKE FORM
+
+Patient Name: Meera Nair
+Contact Phone: +91 99880 12345
+
+Blood Group Required: B-
+Units of Blood Needed: 3
+
+Hospital: Lotus Super Speciality Hospital
+Hospital Address: 21 MG Road, Kottayam, Kerala, 686001
+
+Urgency: NORMAL
+
+Notes: Patient undergoing scheduled surgery for thalassemia management.
+Pre-operative blood reservation requested for B- negative blood.
+Not time-sensitive; please arrange the units 48 hours in advance.

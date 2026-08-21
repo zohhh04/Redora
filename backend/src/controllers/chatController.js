@@ -5,6 +5,7 @@
 // never breaks without a key.
 
 const zlib = require("zlib")
+const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js")
 
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim()
 const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim()
@@ -249,6 +250,94 @@ function extractDocxText(base64) {
   }
 }
 
+// Extract readable text from a PDF so the rules/Gemini get real words instead
+// of binary garbage (PDFs can't be decoded as UTF-8). Uses pdfjs-dist directly
+// with a fresh document per call (disableWorker) so parsing is stateless —
+// pdf-parse@1.1.1 leaks shared parser state and silently fails after other
+// work runs, which is why PDFs intermittently fell back to garbage.
+//
+// Unlike DOCX (which always stores spaces/newlines in its XML), PDFs frequently
+// split text into many tiny glyph/word fragments, and pdf.js's getTextContent
+// concatenates them verbatim — words like "City Care Medical Center" collapse
+// into "CityCareMedicalCenter" so the extraction regexes can't match. We keep
+// pdf.js's reliable `hasEOL` line markers and reinsert spaces from horizontal
+// gaps between fragments, which makes normal PDFs extract as accurately as
+// DOCX files.
+function extractPdfText(base64) {
+  return (async () => {
+    try {
+      const buf = Buffer.from(String(base64 || ""), "base64")
+      const doc = await pdfjsLib
+        .getDocument({ data: new Uint8Array(buf), disableWorker: true })
+        .promise
+      let text = ""
+      for (let i = 1; i <= doc.numPages; i++) {
+        try {
+          const page = await doc.getPage(i)
+          const content = await page.getTextContent()
+          text += rebuildPageText(content.items)
+          page.cleanup()
+        } catch (err) {
+          // A single bad page shouldn't discard text extracted from the rest.
+          console.error("[AURA pdf] page", i, "parse error:", err.message)
+        }
+      }
+      await doc.destroy()
+      return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim()
+    } catch (err) {
+      console.error("[AURA pdf] parse error:", err.message)
+      return ""
+    }
+  })()
+}
+
+// Reconstruct readable text from pdf.js text items. pdf.js marks the end of
+// each line with `hasEOL`, but it drops the literal spaces between words, so
+// words like "City Care Medical Center" can collapse into "CityCareMedicalCenter".
+// We keep `hasEOL` for line breaks (reliable) and additionally inject a space
+// whenever two fragments on the same line are separated by a horizontal gap
+// (i.e. the current X starts past where the previous fragment ended). Fragments
+// that already carry a space are preserved as-is and never doubled up.
+function rebuildPageText(items) {
+  let out = ""
+  let lastX = null
+  let lastWidth = 0
+  let lastWasSpace = false
+
+  for (const item of items) {
+    const str = String(item.str || "")
+    const isSpace = !str || /^\s+$/.test(str)
+    const x = item.transform ? item.transform[4] : lastX
+    const width = typeof item.width === "number" ? item.width : 0
+
+    if (isSpace) {
+      if (!lastWasSpace) out += " "
+    } else if (lastX != null && !lastWasSpace && x > lastX + lastWidth + 0.5) {
+      // Horizontal gap between words that the PDF encoded without a space char.
+      out += " " + str
+    } else {
+      out += str
+    }
+
+    lastWasSpace = isSpace
+    if (!isSpace) {
+      lastX = x + width
+      lastWidth = width
+    } else {
+      lastX = (typeof x === "number" ? x : lastX) + width
+      lastWidth = width
+    }
+
+    if (item.hasEOL) {
+      out = out.replace(/[ \t]+$/, "") + "\n"
+      lastX = null
+      lastWidth = 0
+      lastWasSpace = false
+    }
+  }
+  return out + "\n"
+}
+
 // Heuristic extraction used when no Gemini key is configured. Works best on
 // plain-text files but can also grab common fields out of raw OCR/text dumps.
 // `textOverride` lets callers pass already-decoded text (e.g. from a docx) so
@@ -299,21 +388,25 @@ function extractByRules(base64, textOverride) {
       /([\d]+)\s*units?\b/i,
     ]) || ""
 
-  // Patient name — only via an explicit label (colon/equals) or an honorific,
-  // so it never snatches a random capitalized word from mid-sentence.
+  // Patient name — via an explicit label (with or without a colon/space, e.g.
+  // "Patient Name: Rahul" or the table-layout "Patient NameRahul Sharma"), or
+  // an honorific. Kept label-scoped so it never snatches a random capitalized
+  // word from mid-sentence.
   fields.patientName =
     grab([
-      /(?:patient\s*name|name\s*of\s*patient|name|patient)\s*[:=]\s*([A-Za-z][A-Za-z .'\-]{2,})/im,
-      /patient['\u2019s]*\s*name\s*[:=]\s*([A-Za-z][A-Za-z .'\-]{2,})/i,
+      /patient['\u2019s]*\s*name\s*[:=\-\s]*([A-Z][A-Za-z .'\-]{2,})/i,
+      /(?:name\s*of\s*patient|patient)\s*[:=\-\s]*([A-Za-z][A-Za-z .'\-]{2,})/im,
       /\b(?:Mr|Mrs|Ms|Miss|Dr)\.?\s+([A-Z][A-Za-z.'\-]+(?: [A-Z][A-Za-z.'\-]+){0,3})/i,
     ]) || ""
 
-  // Hospital — label with a colon first (avoids matching "HOSPITAL NOTE"),
-  // then capitalized words that precede "Hospital"/"Hospitals" (e.g. "City Care
-  // Medical Center Hospital" -> "City Care Medical Center", "Apollo Hospitals").
+  // Hospital — explicit label (colon or table-layout "HospitalCity Care…" but
+  // NOT "Hospital Address"), then capitalized words that precede a trailing
+  // "Hospital"/"Hospitals" (e.g. "City Care Medical Center Hospital").
   fields.hospital =
     grab([
-      /\b(?:hospital|clinic|medical center|medical centre|nursing home)\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9 .&\'\-]{2,})/i,
+      /\b(?:hospital|clinic|medical center|medical centre|nursing home)\s*[:=\-]\s*([A-Za-z0-9][A-Za-z0-9 .&\'\-]{2,})/i,
+      /\bHospital\s*(?![Aa]ddress|Note\b)([A-Z][A-Za-z0-9 .&\'\-]+(?: [A-Z][A-Za-z0-9 .&\'\-]+)+)/i,
+      /\bClinic\s*(?![Aa]ddress)([A-Z][A-Za-z0-9 .&\'\-]{2,})/i,
       /([A-Z][A-Za-z0-9.'&\-]+(?: [A-Z][A-Za-z0-9.'&\-]+){0,4})\s+Hospitals?\b/i,
       /\bHospital:\s*([A-Za-z0-9][A-Za-z0-9 .&\'\-]{2,})/i,
     ]) || ""
@@ -336,6 +429,7 @@ function extractByRules(base64, textOverride) {
 
   fields.notes = grab([
     /(?:\bnotes?\s*:|\breason\s*:|\bdiagnosis\s*:|\bindication\s*:|\binstructions\s*:)\s*([A-Za-z0-9][\s\S]{0,200}?)(?:\n\s*\n|$)/i,
+    /\bnotes?\s*\n\s*([A-Za-z0-9][\s\S]{0,600})/i,
   ])
 
   return { source: "rule", fields, text: text.slice(0, 4000) }
@@ -362,14 +456,17 @@ async function extract(req, res) {
       mimeType.startsWith("text/") ||
       /json|csv|xml|yaml|markdown/i.test(mimeType)
 
-    let docxText = null
+    let plainText = null
     if (/wordprocessingml/i.test(mimeType) || /\.docx$/i.test(fileName)) {
-      docxText = extractDocxText(base64)
-      if (docxText) isText = true
+      plainText = extractDocxText(base64)
+      if (plainText) isText = true
+    } else if (/pdf/i.test(mimeType) || /\.pdf$/i.test(fileName)) {
+      plainText = await extractPdfText(base64)
+      if (plainText) isText = true
     }
 
     if (!GEMINI_API_KEY) {
-      return res.json(extractByRules(base64, docxText))
+      return res.json(extractByRules(base64, plainText))
     }
 
     try {
@@ -377,7 +474,7 @@ async function extract(req, res) {
 
       let userParts
       if (isText) {
-        const decoded = docxText || Buffer.from(base64, "base64").toString("utf8")
+        const decoded = plainText || Buffer.from(base64, "base64").toString("utf8")
         userParts = [
           {
             text:
@@ -419,7 +516,7 @@ async function extract(req, res) {
       if (!response.ok) {
         const detail = await response.text().catch(() => "")
         console.error("[AURA Extract] HTTP", response.status, detail.slice(0, 200))
-        return res.json(extractByRules(base64, docxText))
+        return res.json(extractByRules(base64, plainText))
       }
 
       const data = await response.json()
@@ -438,25 +535,34 @@ async function extract(req, res) {
         }
       }
       if (!parsed || typeof parsed !== "object") {
-        return res.json(extractByRules(base64, docxText))
+        return res.json(extractByRules(base64, plainText))
       }
 
+      const ruleFields = extractByRules(base64, plainText).fields
       const fields = {
-        patientName: String(parsed.patientName || "").trim(),
-        phone: String(parsed.phone || "").trim(),
-        bloodGroup: detectBloodGroup(parsed.bloodGroup || "") || String(parsed.bloodGroup || "").trim(),
-        units: Number(parsed.units) > 0 ? String(Number(parsed.units)) : "",
-        hospital: String(parsed.hospital || "").trim(),
-        location: String(parsed.location || "").trim(),
+        patientName:
+          String(parsed.patientName || "").trim() || ruleFields.patientName,
+        phone: String(parsed.phone || "").trim() || ruleFields.phone,
+        bloodGroup:
+          detectBloodGroup(parsed.bloodGroup || "") ||
+          String(parsed.bloodGroup || "").trim() ||
+          ruleFields.bloodGroup,
+        units:
+          (Number(parsed.units) > 0 ? String(Number(parsed.units)) : "") ||
+          ruleFields.units,
+        hospital:
+          String(parsed.hospital || "").trim() || ruleFields.hospital,
+        location:
+          String(parsed.location || "").trim() || ruleFields.location,
         urgency: /emergency|urgent|critical/i.test(parsed.urgency || "")
           ? "emergency"
           : "normal",
-        notes: String(parsed.notes || "").trim(),
+        notes: String(parsed.notes || "").trim() || ruleFields.notes,
       }
       return res.json({ source: "gemini", fields, text: text.slice(0, 4000) })
     } catch (err) {
       console.error("[AURA Extract] network error:", err.message)
-      return res.json(extractByRules(base64, docxText))
+      return res.json(extractByRules(base64, plainText))
     }
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -556,4 +662,75 @@ async function chat(req, res) {
   }
 }
 
-module.exports = { chat, extract }
+// POST /api/chat/eligibility - personalized "Can I donate?" using the logged-in
+// donor's own profile (blood group, last donation date, availability, health
+// flags) and the 2-month rule. Returns a clear yes/no with reasons.
+async function eligibility(req, res) {
+  try {
+    const user = req.user
+    if (!user) return res.status(401).json({ message: "Not authorized" })
+
+    const now = Date.now()
+    const TWO_MONTHS = 2 * 30 * 24 * 60 * 60 * 1000
+    const nextEligible = user.lastDonationDate
+      ? new Date(new Date(user.lastDonationDate).getTime() + TWO_MONTHS)
+      : null
+    const eligibleByGap = !user.lastDonationDate || now >= nextEligible.getTime()
+    const daysUntil = nextEligible
+      ? Math.ceil((nextEligible.getTime() - now) / (24 * 60 * 60 * 1000))
+      : 0
+
+    const blockers = []
+    const notes = []
+
+    if (user.role !== "donor") {
+      blockers.push("You are registered as a patient, not a donor.")
+    }
+    if (!user.verified) {
+      blockers.push("Your account is not verified yet.")
+    }
+    if (!user.bloodGroup) {
+      blockers.push("You have not set your blood group. Complete your donor profile.")
+    }
+    if (!eligibleByGap) {
+      blockers.push(
+        `You donated on ${new Date(user.lastDonationDate).toLocaleDateString()} — you can donate again after ${nextEligible.toLocaleDateString()} (${daysUntil} day${
+          daysUntil === 1 ? "" : "s"
+        } remaining).`
+      )
+    }
+    if (!user.availableForDonation) {
+      notes.push("You are currently marked unavailable for donation.")
+    }
+
+    const flags = Array.isArray(user.healthFlags) ? user.healthFlags.filter(Boolean) : []
+    if (flags.length) {
+      blockers.push(
+        `Health flag(s) on record: ${flags.join(", ")}. Please consult a doctor to confirm you can donate.`
+      )
+    }
+
+    const canDonate = blockers.length === 0
+
+    return res.json({
+      canDonate,
+      donorName: user.name || "Donor",
+      bloodGroup: user.bloodGroup || "",
+      lastDonationDate: user.lastDonationDate || null,
+      nextEligibleDate: nextEligible ? nextEligible.toISOString() : null,
+      verified: !!user.verified,
+      availableForDonation: !!user.availableForDonation,
+      availableForEmergencies: !!user.availableForEmergencies,
+      healthFlags: flags,
+      blockers,
+      notes,
+      summary: canDonate
+        ? "Great news — you are eligible to donate right now! "
+        : "You are not currently eligible to donate.",
+    })
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
+}
+
+module.exports = { chat, extract, eligibility }

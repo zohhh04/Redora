@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema(
     city: { type: String, default: "" },
     area: { type: String, default: "" },
     travelRadiusKm: { type: Number, default: 25 },
+    healthFlags: { type: [String], default: [] },
     location: {
       lat: { type: Number, default: null },
       lng: { type: Number, default: null },

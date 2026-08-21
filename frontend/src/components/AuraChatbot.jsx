@@ -679,6 +679,42 @@ export default function AuraChatbot({ autoOpen = false }) {
       pushUser(text)
 
       setTyping(true)
+      // Personalized "Can I donate?" — for a logged-in donor, ask the backend to
+      // evaluate their real profile (blood group, last donation date, health
+      // flags, 2-month rule) and show a clear yes/no with reasons.
+      if (
+        user?.role === 'donor' &&
+        /(can i donate|am i eligible|am i able to donate|am i allowed to donate|when can i donate again|can i give blood|can i donate blood|am i ready to donate)/i.test(text)
+      ) {
+        try {
+          const { data } = await api.post('/chat/eligibility', {})
+          setTyping(false)
+          if (data && typeof data.canDonate === 'boolean') {
+            let reply = data.canDonate ? '✅ Yes, you can donate! ' : '❌ Not right now. '
+            reply += data.summary + '\n\n'
+            if (data.blockers?.length) reply += '• ' + data.blockers.join('\n• ') + '\n'
+            if (data.notes?.length) reply += '\nNote: ' + data.notes.join(' ') + '\n'
+            reply +=
+              `\nBlood group: ${data.bloodGroup || 'not set'} · ` +
+              `Account verified: ${data.verified ? 'yes' : 'no'} · ` +
+              `Available for donation: ${data.availableForDonation ? 'yes' : 'no'}.` +
+              (data.lastDonationDate
+                ? `\nLast donated: ${new Date(data.lastDonationDate).toLocaleDateString()}.`
+                : '') +
+              (data.nextEligibleDate
+                ? `\nNext eligible: ${new Date(data.nextEligibleDate).toLocaleDateString()}.`
+                : '')
+            pushBot(reply, ['How do I donate?', 'Blood group compatibility'])
+            return
+          }
+        } catch (err) {
+          console.error('[AuraChatbot] eligibility failed:', err)
+          setTyping(false)
+          pushBot('I couldn\u2019t check your eligibility right now. Make sure you\u2019re logged in as a donor, then ask again.')
+          return
+        }
+      }
+
       // Fast path: answer instantly from the built-in KB when it matches (just
       // like a rule-based assistant), so common questions get an immediate
       // reply instead of waiting on the network every time. Gemini (the slow
@@ -769,6 +805,15 @@ export default function AuraChatbot({ autoOpen = false }) {
           pushBot('Okay, I ignored the file. You can upload another file anytime with the paperclip. 📄')
           return
         }
+      } else if (/^(confirm|yes|post|submit|go ahead|looks good|fill the form|pre-fill|prefill|cancel|no|stop|ignore|dismiss)\b/i.test(trimmed)) {
+        // Nothing is pending to confirm/cancel — don't hand these action words to
+        // the LLM (it would promise a redirect it can't do). Reply clearly instead.
+        setInput('')
+        pushBot(
+          "I don\u2019t have a pending file to confirm or cancel. Upload a prescription or hospital note with the paperclip \uD83D\uDCCE and I\u2019ll read it and pre-fill a blood request form for you. To post the request you need to be logged in as a patient.",
+          ['Request blood', 'What can you do?']
+        )
+        return
       }
       await handleSend(trimmed)
     } catch (error) {
